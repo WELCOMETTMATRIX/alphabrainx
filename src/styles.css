@@ -299,3 +299,113 @@
   background: linear-gradient(180deg, transparent, oklch(0.82 0.14 210 / 0.85), transparent);
   box-shadow: 0 0 18px oklch(0.82 0.14 210 / 0.7);
 }
+
+/* ============================================================
+   TAB / SEGMENT — animated slider indicator
+   ============================================================ */
+@utility seg-track {
+  position: relative;
+  display: flex;
+  padding: 4px;
+  gap: 2px;
+  border-radius: 9999px;
+  background:
+    linear-gradient(180deg, oklch(1 0 0 / 0.08), oklch(1 0 0 / 0.02)),
+    oklch(0.05 0.01 240 / 0.55);
+  backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid oklch(0.82 0.14 210 / 0.18);
+  box-shadow:
+    0 1px 0 oklch(1 0 0 / 0.07) inset,
+    0 8px 20px -8px oklch(0 0 0 / 0.6);
+}
+@utility seg-thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 9999px;
+  background:
+    linear-gradient(180deg, oklch(1 0 0 / 0.18), oklch(1 0 0 / 0.04)),
+    oklch(0.82 0.14 210 / 0.15);
+  border: 1px solid oklch(0.82 0.14 210 / 0.35);
+  box-shadow:
+    0 4px 12px -4px oklch(0.82 0.14 210 / 0.5),
+    0 1px 0 oklch(1 0 0 / 0.2) inset;
+  transition: left .35s cubic-bezier(.2,.8,.2,1), width .35s cubic-bezier(.2,.8,.2,1);
+  pointer-events: none;
+}
+@utility seg-btn {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: oklch(0.7 0.02 240);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: color .2s ease, transform .1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.seg-btn:hover { color: oklch(0.92 0.01 240); }
+.seg-btn:active { transform: scale(0.97); }
+.seg-btn[data-active="true"] { color: #fff; text-shadow: 0 0 12px oklch(0.82 0.14 210 / 0.7); }
+
+/* Touch-friendly button base */
+@utility tap {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform .1s ease, background-color .2s ease, color .2s ease;
+}
+.tap:active { transform: scale(0.96); }
+
+/* Safe-area helpers for iOS notches / Android nav */
+@utility pt-safe { padding-top: env(safe-area-inset-top); }
+@utility pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+@utility mb-safe { margin-bottom: env(safe-area-inset-bottom); }
+
+/* Custom scrollbar — thin cyan */
+@utility scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.82 0.14 210 / 0.35) transparent;
+}
+.scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: oklch(0.82 0.14 210 / 0.35);
+  border-radius: 999px;
+}
+.scroll-thin::-webkit-scrollbar-track { background: transparent; }
+
+/* Draggable modal panel */
+@utility drag-modal {
+  position: fixed;
+  z-index: 50;
+  background:
+    linear-gradient(180deg, oklch(1 0 0 / 0.07), oklch(1 0 0 / 0.01)),
+    oklch(0.03 0.008 240 / 0.92);
+  backdrop-filter: blur(32px) saturate(180%);
+  border: 1px solid oklch(0.82 0.14 210 / 0.25);
+  border-radius: 20px;
+  box-shadow:
+    0 1px 0 oklch(1 0 0 / 0.1) inset,
+    0 40px 100px -20px oklch(0 0 0 / 0.9),
+    0 0 80px -20px oklch(0.82 0.14 210 / 0.35);
+}
+@utility drag-handle {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+.drag-handle:active { cursor: grabbing; }
+
+/* Focus ring for keyboard accessibility */
+button:focus-visible, a:focus-visible, input:focus-visible {
+  outline: 2px solid oklch(0.82 0.14 210 / 0.6);
+  outline-offset: 2px;
+}

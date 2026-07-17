@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { createChart, CandlestickSeries, LineSeries, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import {
-  Activity, Bell, BellRing, Brain, Copy, ExternalLink, Flame, GitCompareArrows, LayoutGrid,
-  Link2, Loader2, Plus, Search, Settings2, Shield, Sparkles, TrendingDown, TrendingUp,
+  Activity, Bell, BellRing, Brain, Copy, Download, ExternalLink, Flame, GitCompareArrows, LayoutGrid,
+  Link2, Loader2, Minus, Plus, Search, Settings2, Shield, Sparkles, TrendingDown, TrendingUp,
   X, Zap,
 } from "lucide-react";
 import {
@@ -73,6 +73,7 @@ function Dashboard() {
   const [alerts, setAlerts] = useLocal<Alert[]>("ab.alerts", []);
   const [compareSyms, setCompareSyms] = useLocal<Watch[]>("ab.compare", []);
   const [compareOn, setCompareOn] = useState(false);
+  const [installOpen, setInstallOpen] = useState(false);
 
   // Fetch quotes for watchlist + compare (dedupe)
   const tracked = useMemo(() => {
@@ -185,7 +186,7 @@ function Dashboard() {
     <div className="min-h-screen text-slate-100 flex flex-col relative">
       <ToastHost />
       <TickerTape stocks={stockMoversQuery.data} crypto={cryptoMoversQuery.data} />
-      <Header alerts={activeAlerts} onOpenAlerts={() => setMobileTab("alerts")} />
+      <Header alerts={activeAlerts} onOpenAlerts={() => setMobileTab("alerts")} onOpenInstall={() => setInstallOpen(true)} />
       <PulseBar pulse={pulseQuery.data} />
 
       {/* Desktop layout */}
@@ -255,26 +256,34 @@ function Dashboard() {
       </div>
 
       {/* Mobile bottom nav */}
-      <nav className="lg:hidden fixed bottom-3 left-3 right-3 z-30 glass-strong rounded-2xl px-2 py-1.5 flex items-center justify-around">
-        {([
-          ["chart", <Activity key="c" className="h-5 w-5" />, "Chart"],
-          ["browse", <LayoutGrid key="b" className="h-5 w-5" />, "Browse"],
-          ["compare", <GitCompareArrows key="cm" className="h-5 w-5" />, "Compare"],
-          ["alerts", <Bell key="a" className="h-5 w-5" />, "Alerts"],
-          ["ai", <Brain key="ai" className="h-5 w-5" />, "AI"],
-        ] as const).map(([id, icon, label]) => (
-          <button key={id} onClick={() => setMobileTab(id)}
-            className={`min-w-[56px] min-h-[44px] flex flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1 transition ${mobileTab === id ? "bg-white/15 text-white" : "text-slate-400"}`}>
-            <span className="relative">
-              {icon}
-              {id === "alerts" && activeAlerts > 0 && (
-                <span className="absolute -top-1 -right-2 text-[9px] font-bold bg-rose-500 text-white rounded-full px-1 min-w-[14px] text-center">{activeAlerts}</span>
-              )}
-            </span>
-            <span className="text-[9px] font-semibold uppercase tracking-wider">{label}</span>
-          </button>
-        ))}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 px-3 pb-safe pointer-events-none">
+        <div className="pointer-events-auto mt-2 mb-2 glass-strong rounded-2xl px-1.5 py-1.5 flex items-center justify-around">
+          {([
+            ["chart", <Activity key="c" className="h-5 w-5" />, "Chart"],
+            ["browse", <LayoutGrid key="b" className="h-5 w-5" />, "Browse"],
+            ["compare", <GitCompareArrows key="cm" className="h-5 w-5" />, "Compare"],
+            ["alerts", <Bell key="a" className="h-5 w-5" />, "Alerts"],
+            ["ai", <Brain key="ai" className="h-5 w-5" />, "AI"],
+          ] as const).map(([id, icon, label]) => {
+            const active = mobileTab === id;
+            return (
+              <button key={id} onClick={() => setMobileTab(id)}
+                className={`tap flex-1 min-w-0 min-h-[48px] flex flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 ${active ? "text-white" : "text-slate-400"}`}
+                style={active ? { background: "linear-gradient(180deg, oklch(1 0 0 / .14), oklch(1 0 0 / .04))", boxShadow: "0 0 0 1px oklch(.82 .14 210 / .3) inset, 0 4px 12px -4px oklch(.82 .14 210 / .5)" } : undefined}>
+                <span className="relative">
+                  {icon}
+                  {id === "alerts" && activeAlerts > 0 && (
+                    <span className="absolute -top-1 -right-2 text-[9px] font-bold bg-rose-500 text-white rounded-full px-1 min-w-[14px] text-center">{activeAlerts}</span>
+                  )}
+                </span>
+                <span className="text-[9px] font-semibold uppercase tracking-wider">{label}</span>
+              </button>
+            );
+          })}
+        </div>
       </nav>
+
+      {installOpen && <InstallModal onClose={() => setInstallOpen(false)} />}
 
       <footer className="hidden lg:block text-center text-[10px] text-slate-500 py-3 font-mono uppercase tracking-widest">
         Alpha Brain Pro · Crypto.com Exchange · Finnhub · Lovable AI · Not financial advice
@@ -313,9 +322,9 @@ function ToastHost() {
 // ============================================================================
 // HEADER
 // ============================================================================
-function Header({ alerts, onOpenAlerts }: { alerts: number; onOpenAlerts: () => void }) {
+function Header({ alerts, onOpenAlerts, onOpenInstall }: { alerts: number; onOpenAlerts: () => void; onOpenInstall: () => void }) {
   return (
-    <header className="sticky top-0 z-20 px-3 pt-3">
+    <header className="sticky top-0 z-20 px-3 pt-3 pt-safe">
       <div className="glass-strong rounded-2xl grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 sm:flex sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative shrink-0">
@@ -332,9 +341,14 @@ function Header({ alerts, onOpenAlerts }: { alerts: number; onOpenAlerts: () => 
             <p className="text-[9px] uppercase tracking-[0.25em] text-slate-400 -mt-0.5 font-mono">Crystal Terminal · 2026</p>
           </div>
         </div>
-        <div className="hidden sm:flex items-center gap-2 shrink-0">
-          <SearchBox />
-          <button onClick={onOpenAlerts} className="relative h-10 w-10 grid place-items-center rounded-xl glass hover:bg-white/10 transition">
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden sm:block"><SearchBox /></div>
+          <button onClick={onOpenInstall} title="Install app"
+            className="tap h-10 px-3 sm:px-3 grid place-items-center rounded-xl glass hover:bg-white/10 flex items-center gap-1.5">
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs font-semibold uppercase tracking-wider">Install</span>
+          </button>
+          <button onClick={onOpenAlerts} title="Alerts" className="tap relative h-10 w-10 grid place-items-center rounded-xl glass hover:bg-white/10">
             <Bell className="h-4 w-4" />
             {alerts > 0 && <span className="absolute -top-1 -right-1 text-[9px] font-bold bg-rose-500 text-white rounded-full px-1 min-w-[14px] text-center">{alerts}</span>}
           </button>
@@ -848,14 +862,16 @@ function NavigatorPanel({
   return (
     <div className="glass rounded-2xl flex flex-col min-h-0 flex-1 overflow-hidden">
       <div className="p-3 space-y-2.5 border-b border-white/5">
-        <div className="glass-pill flex p-1 text-[11px]">
-          {(["watchlist", "stocks", "crypto", "onchain"] as const).map((k) => (
-            <button key={k} onClick={() => setTab(k)}
-              className={`flex-1 py-1.5 font-semibold uppercase tracking-wide rounded-full transition ${tab === k ? "bg-white/15 text-white" : "text-slate-400"}`}>
-              {k === "watchlist" ? `List · ${watch.length}` : k === "stocks" ? "Stocks" : k === "crypto" ? "CEX" : "Onchain"}
-            </button>
-          ))}
-        </div>
+        <SegmentedTabs
+          value={tab}
+          onChange={(v) => setTab(v as typeof tab)}
+          items={[
+            { value: "watchlist", label: `List · ${watch.length}` },
+            { value: "stocks", label: "Stocks" },
+            { value: "crypto", label: "CEX" },
+            { value: "onchain", label: "Onchain" },
+          ]}
+        />
         {tab !== "onchain" && (
           <>
             <div className="relative">
@@ -1158,14 +1174,15 @@ function OnchainExplorer() {
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <div className="p-3 border-b border-white/5 space-y-2">
-        <div className="glass-pill flex p-1 text-[10px]">
-          {(["trending", "new", "search"] as const).map((m) => (
-            <button key={m} onClick={() => setMode(m)}
-              className={`flex-1 py-1.5 font-semibold uppercase tracking-wider rounded-full transition flex items-center justify-center gap-1 ${mode === m ? "bg-white/15 text-white" : "text-slate-400"}`}>
-              {m === "trending" ? <><Flame className="h-3 w-3" /> Trending</> : m === "new" ? <><Sparkles className="h-3 w-3" /> New</> : <><Search className="h-3 w-3" /> Search</>}
-            </button>
-          ))}
-        </div>
+        <SegmentedTabs
+          value={mode}
+          onChange={(v) => setMode(v as typeof mode)}
+          items={[
+            { value: "trending", label: "Trending", icon: <Flame className="h-3.5 w-3.5" /> },
+            { value: "new", label: "New", icon: <Sparkles className="h-3.5 w-3.5" /> },
+            { value: "search", label: "Search", icon: <Search className="h-3.5 w-3.5" /> },
+          ]}
+        />
         {mode === "search" && (
           <div className="relative">
             <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)}
@@ -1277,8 +1294,7 @@ function OnchainDetailModal({ token, onClose }: { token: OnchainTok; onClose: ()
   const ageDays = tok.createdAt ? (Date.now() - tok.createdAt) / 86_400_000 : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="glass-strong rounded-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <DraggableModal onClose={onClose} title={`${tok.symbol} · ${tok.name}`} width={880}>
         <div className="p-4 border-b border-white/10 flex items-start gap-3">
           {tok.icon ? (
             <img src={tok.icon} alt="" className="h-11 w-11 rounded-full bg-white/5 shrink-0" />
@@ -1294,11 +1310,10 @@ function OnchainDetailModal({ token, onClose }: { token: OnchainTok; onClose: ()
             </div>
             <div className="mt-1 flex items-center gap-1.5 text-[10px] font-mono text-slate-500">
               <span className="truncate max-w-[220px] sm:max-w-none">{tok.address}</span>
-              <button onClick={copyAddr} className="hover:text-white shrink-0" title="Copy address"><Copy className="h-3 w-3" /></button>
+              <button onClick={copyAddr} className="hover:text-white shrink-0 tap" title="Copy address"><Copy className="h-3 w-3" /></button>
               {tok.pairUrl && <a href={tok.pairUrl} target="_blank" rel="noreferrer" className="hover:text-white shrink-0" title="Open on DexScreener"><ExternalLink className="h-3 w-3" /></a>}
             </div>
           </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-4 border-b border-white/5">
@@ -1383,8 +1398,7 @@ function OnchainDetailModal({ token, onClose }: { token: OnchainTok; onClose: ()
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </DraggableModal>
   );
 }
 
@@ -1395,5 +1409,241 @@ function Stat({ label, value, sub, highlight }: { label: string; value: string; 
       <div className={`text-sm font-mono font-bold ${highlight === "up" ? "text-emerald-400" : highlight === "down" ? "text-rose-400" : "text-white"}`}>{value}</div>
       {sub && <div className="text-[9px] font-mono text-slate-500 mt-0.5">{sub}</div>}
     </div>
+  );
+}
+
+// ============================================================================
+// SEGMENTED TABS — sliding indicator, keyboard + touch friendly
+// ============================================================================
+function SegmentedTabs({ value, onChange, items }: {
+  value: string;
+  onChange: (v: string) => void;
+  items: { value: string; label: string; icon?: React.ReactNode }[];
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [thumb, setThumb] = useState<{ left: number; width: number } | null>(null);
+  useEffect(() => {
+    const wrap = wrapRef.current; if (!wrap) return;
+    const active = wrap.querySelector<HTMLButtonElement>(`[data-active="true"]`);
+    if (!active) return;
+    const wrapRect = wrap.getBoundingClientRect();
+    const r = active.getBoundingClientRect();
+    setThumb({ left: r.left - wrapRect.left, width: r.width });
+  }, [value, items.length]);
+  return (
+    <div ref={wrapRef} className="seg-track" role="tablist">
+      {thumb && <span className="seg-thumb" style={{ left: thumb.left, width: thumb.width }} />}
+      {items.map((it) => (
+        <button key={it.value} role="tab" data-active={value === it.value}
+          aria-selected={value === it.value}
+          onClick={() => onChange(it.value)} className="seg-btn tap">
+          {it.icon}
+          <span className="truncate">{it.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================================
+// DRAGGABLE MODAL — moveable on desktop, bottom sheet on mobile, minimizable
+// ============================================================================
+function DraggableModal({ onClose, title, width = 720, children }: {
+  onClose: () => void; title: string; width?: number; children: React.ReactNode;
+}) {
+  const [isMobile, setIsMobile] = useState<boolean>(() => typeof window !== "undefined" && window.innerWidth < 768);
+  useEffect(() => {
+    const on = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", on);
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", esc);
+    return () => { window.removeEventListener("resize", on); window.removeEventListener("keydown", esc); };
+  }, [onClose]);
+
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [minimized, setMinimized] = useState(false);
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
+
+  useEffect(() => {
+    if (isMobile || pos) return;
+    const w = Math.min(width, window.innerWidth - 40);
+    const h = Math.min(window.innerHeight * 0.86, 780);
+    setPos({ x: Math.max(20, (window.innerWidth - w) / 2), y: Math.max(20, (window.innerHeight - h) / 2) });
+  }, [isMobile, width, pos]);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (isMobile || !pos) return;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const x = Math.max(-40, Math.min(window.innerWidth - 80, e.clientX - dragRef.current.dx));
+    const y = Math.max(0, Math.min(window.innerHeight - 60, e.clientY - dragRef.current.dy));
+    setPos({ x, y });
+  };
+  const onPointerUp = () => { dragRef.current = null; };
+
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm pb-safe" onClick={onClose}>
+        <div className="drag-modal w-full max-w-lg max-h-[92vh] flex flex-col rounded-t-3xl rounded-b-none" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-white/10">
+            <div className="mx-auto h-1 w-10 rounded-full bg-white/25" />
+            <button onClick={onClose} className="absolute right-3 top-3 tap p-1.5 rounded-lg text-slate-300 hover:bg-white/10"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="px-4 py-1 text-[11px] font-mono text-slate-400 border-b border-white/5 truncate">{title}</div>
+          <div className="flex-1 overflow-y-auto scroll-thin overscroll-contain">{children}</div>
+        </div>
+      </div>
+    );
+  }
+
+  const w = Math.min(width, window.innerWidth - 40);
+  const h = minimized ? 56 : Math.min(window.innerHeight * 0.86, 780);
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="drag-modal flex flex-col overflow-hidden"
+        style={{ left: pos?.x ?? 0, top: pos?.y ?? 0, width: w, height: h }}>
+        <div className="drag-handle flex items-center gap-2 px-3 h-11 border-b border-white/10 bg-white/5"
+          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+          <span className="flex gap-1.5 shrink-0">
+            <span className="h-2.5 w-2.5 rounded-full bg-rose-400/80" />
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+          </span>
+          <span className="text-[11px] font-mono text-slate-300 truncate flex-1 text-center px-2">{title}</span>
+          <button onClick={() => setMinimized((m) => !m)} title={minimized ? "Restore" : "Minimize"}
+            className="tap p-1.5 rounded-lg text-slate-300 hover:bg-white/10"><Minus className="h-3.5 w-3.5" /></button>
+          <button onClick={onClose} title="Close"
+            className="tap p-1.5 rounded-lg text-slate-300 hover:bg-rose-500/25 hover:text-rose-200"><X className="h-4 w-4" /></button>
+        </div>
+        {!minimized && <div className="flex-1 overflow-y-auto scroll-thin">{children}</div>}
+      </div>
+    </>
+  );
+}
+
+// ============================================================================
+// INSTALL MODAL — PWA install prompt + per-OS instructions
+// ============================================================================
+type BIPEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
+function InstallModal({ onClose }: { onClose: () => void }) {
+  const [ua, setUA] = useState<{ ios: boolean; android: boolean; windows: boolean; mac: boolean; standalone: boolean }>(
+    { ios: false, android: false, windows: false, mac: false, standalone: false });
+  const [deferred, setDeferred] = useState<BIPEvent | null>(null);
+  const [installed, setInstalled] = useState(false);
+  const [os, setOs] = useState<"ios" | "android" | "windows" | "mac">("android");
+
+  useEffect(() => {
+    const u = navigator.userAgent;
+    const ios = /iPad|iPhone|iPod/.test(u) && !(window as any).MSStream;
+    const android = /Android/i.test(u);
+    const windows = /Windows/i.test(u);
+    const mac = /Macintosh/i.test(u) && !ios;
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true;
+    setUA({ ios, android, windows, mac, standalone });
+    setOs(ios ? "ios" : android ? "android" : windows ? "windows" : mac ? "mac" : "android");
+    const on = (e: Event) => { e.preventDefault(); setDeferred(e as BIPEvent); };
+    const done = () => setInstalled(true);
+    window.addEventListener("beforeinstallprompt", on as EventListener);
+    window.addEventListener("appinstalled", done);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", on as EventListener);
+      window.removeEventListener("appinstalled", done);
+    };
+  }, []);
+
+  const install = async () => {
+    if (!deferred) return;
+    await deferred.prompt();
+    const res = await deferred.userChoice;
+    if (res.outcome === "accepted") setInstalled(true);
+    setDeferred(null);
+  };
+
+  const items = [
+    { value: "ios", label: "iPhone" },
+    { value: "android", label: "Android" },
+    { value: "windows", label: "Windows" },
+    { value: "mac", label: "macOS" },
+  ];
+
+  return (
+    <DraggableModal onClose={onClose} title="Install Alpha Brain" width={640}>
+      <div className="p-4 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl grid place-items-center bg-gradient-to-br from-indigo-500 via-cyan-400 to-emerald-400">
+            <Brain className="h-6 w-6 text-black" strokeWidth={2.5} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-white font-bold text-sm">Add Alpha Brain to your device</div>
+            <div className="text-[11px] text-slate-400">Fullscreen, offline-ready shell, home-screen icon. Works on iOS, Android, Windows &amp; macOS.</div>
+          </div>
+        </div>
+
+        {ua.standalone ? (
+          <div className="glass rounded-xl p-3 text-xs text-emerald-300">✅ Already installed — you're running the app.</div>
+        ) : installed ? (
+          <div className="glass rounded-xl p-3 text-xs text-emerald-300">✅ Installed. Look for the Alpha Brain icon on your device.</div>
+        ) : deferred ? (
+          <button onClick={install}
+            className="tap w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"
+            style={{ background: "var(--grad-neon)", color: "var(--primary-foreground)" }}>
+            <Download className="h-4 w-4" /> Install now
+          </button>
+        ) : null}
+
+        <SegmentedTabs value={os} onChange={(v) => setOs(v as typeof os)} items={items} />
+
+        <div className="glass rounded-xl p-3 text-[12px] leading-relaxed text-slate-200 space-y-2">
+          {os === "ios" && (
+            <>
+              <div className="text-white font-semibold text-xs uppercase tracking-wider">iPhone / iPad — Safari</div>
+              <ol className="list-decimal ml-5 space-y-1 text-slate-300">
+                <li>Tap the <b>Share</b> button (square with arrow up) in Safari.</li>
+                <li>Scroll and tap <b>Add to Home Screen</b>.</li>
+                <li>Tap <b>Add</b> — Alpha Brain now lives on your home screen like a native app.</li>
+              </ol>
+            </>
+          )}
+          {os === "android" && (
+            <>
+              <div className="text-white font-semibold text-xs uppercase tracking-wider">Android — Chrome / Edge</div>
+              <ol className="list-decimal ml-5 space-y-1 text-slate-300">
+                <li>Tap the <b>⋮</b> menu in the browser toolbar.</li>
+                <li>Tap <b>Install app</b> or <b>Add to Home screen</b>.</li>
+                <li>Confirm — the app opens fullscreen from your launcher.</li>
+              </ol>
+            </>
+          )}
+          {os === "windows" && (
+            <>
+              <div className="text-white font-semibold text-xs uppercase tracking-wider">Windows 10 / 11 — Chrome / Edge</div>
+              <ol className="list-decimal ml-5 space-y-1 text-slate-300">
+                <li>Click the <b>install icon</b> (⊕ or monitor with down arrow) in the address bar.</li>
+                <li>Or open the browser menu → <b>Apps → Install this site as an app</b>.</li>
+                <li>Alpha Brain gets its own window, taskbar icon, and Start-menu entry.</li>
+              </ol>
+            </>
+          )}
+          {os === "mac" && (
+            <>
+              <div className="text-white font-semibold text-xs uppercase tracking-wider">macOS — Safari 17+ / Chrome</div>
+              <ol className="list-decimal ml-5 space-y-1 text-slate-300">
+                <li>Safari: <b>File → Add to Dock…</b> and confirm.</li>
+                <li>Chrome/Edge: address-bar <b>install</b> icon, or menu → <b>Cast, Save & Share → Install</b>.</li>
+                <li>Launch it from Launchpad or the Dock like any Mac app.</li>
+              </ol>
+            </>
+          )}
+        </div>
+
+        <div className="text-[10px] font-mono text-slate-500">
+          Tip: enable browser <b>Notifications</b> so price alerts fire even when the app is in the background.
+        </div>
+      </div>
+    </DraggableModal>
   );
 }
