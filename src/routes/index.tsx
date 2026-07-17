@@ -256,26 +256,34 @@ function Dashboard() {
       </div>
 
       {/* Mobile bottom nav */}
-      <nav className="lg:hidden fixed bottom-3 left-3 right-3 z-30 glass-strong rounded-2xl px-2 py-1.5 flex items-center justify-around">
-        {([
-          ["chart", <Activity key="c" className="h-5 w-5" />, "Chart"],
-          ["browse", <LayoutGrid key="b" className="h-5 w-5" />, "Browse"],
-          ["compare", <GitCompareArrows key="cm" className="h-5 w-5" />, "Compare"],
-          ["alerts", <Bell key="a" className="h-5 w-5" />, "Alerts"],
-          ["ai", <Brain key="ai" className="h-5 w-5" />, "AI"],
-        ] as const).map(([id, icon, label]) => (
-          <button key={id} onClick={() => setMobileTab(id)}
-            className={`min-w-[56px] min-h-[44px] flex flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1 transition ${mobileTab === id ? "bg-white/15 text-white" : "text-slate-400"}`}>
-            <span className="relative">
-              {icon}
-              {id === "alerts" && activeAlerts > 0 && (
-                <span className="absolute -top-1 -right-2 text-[9px] font-bold bg-rose-500 text-white rounded-full px-1 min-w-[14px] text-center">{activeAlerts}</span>
-              )}
-            </span>
-            <span className="text-[9px] font-semibold uppercase tracking-wider">{label}</span>
-          </button>
-        ))}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 px-3 pb-safe pointer-events-none">
+        <div className="pointer-events-auto mt-2 mb-2 glass-strong rounded-2xl px-1.5 py-1.5 flex items-center justify-around">
+          {([
+            ["chart", <Activity key="c" className="h-5 w-5" />, "Chart"],
+            ["browse", <LayoutGrid key="b" className="h-5 w-5" />, "Browse"],
+            ["compare", <GitCompareArrows key="cm" className="h-5 w-5" />, "Compare"],
+            ["alerts", <Bell key="a" className="h-5 w-5" />, "Alerts"],
+            ["ai", <Brain key="ai" className="h-5 w-5" />, "AI"],
+          ] as const).map(([id, icon, label]) => {
+            const active = mobileTab === id;
+            return (
+              <button key={id} onClick={() => setMobileTab(id)}
+                className={`tap flex-1 min-w-0 min-h-[48px] flex flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 ${active ? "text-white" : "text-slate-400"}`}
+                style={active ? { background: "linear-gradient(180deg, oklch(1 0 0 / .14), oklch(1 0 0 / .04))", boxShadow: "0 0 0 1px oklch(.82 .14 210 / .3) inset, 0 4px 12px -4px oklch(.82 .14 210 / .5)" } : undefined}>
+                <span className="relative">
+                  {icon}
+                  {id === "alerts" && activeAlerts > 0 && (
+                    <span className="absolute -top-1 -right-2 text-[9px] font-bold bg-rose-500 text-white rounded-full px-1 min-w-[14px] text-center">{activeAlerts}</span>
+                  )}
+                </span>
+                <span className="text-[9px] font-semibold uppercase tracking-wider">{label}</span>
+              </button>
+            );
+          })}
+        </div>
       </nav>
+
+      {installOpen && <InstallModal onClose={() => setInstallOpen(false)} />}
 
       <footer className="hidden lg:block text-center text-[10px] text-slate-500 py-3 font-mono uppercase tracking-widest">
         Alpha Brain Pro · Crypto.com Exchange · Finnhub · Lovable AI · Not financial advice
