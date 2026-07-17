@@ -511,7 +511,8 @@ function ChartCard({ data, loading, symbol }: { data: Array<{ time: number; open
       crosshair: { mode: 1 },
     });
     const s = chart.addSeries(CandlestickSeries, {
-      upColor: "#4ade80", downColor: "#f87171", borderVisible: false, wickUpColor: "#4ade80", wickDownColor: "#f87171",
+      upColor: "#10b981", downColor: "#f43f5e", borderUpColor: "#10b981", borderDownColor: "#f43f5e",
+      wickUpColor: "#10b981", wickDownColor: "#f43f5e",
     });
     chartRef.current = chart; seriesRef.current = s;
     return () => { chart.remove(); chartRef.current = null; seriesRef.current = null; };
