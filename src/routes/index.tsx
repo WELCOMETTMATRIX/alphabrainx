@@ -10,7 +10,6 @@ import {
 import {
   aiAnalyze, aiMarketScan,
   getAllCryptoTokens, getAllStocks,
-  getCdcxBalance,
   getCryptoCandles, getCryptoQuote,
   getMarketPulse,
   getStockCandles, getStockQuote,
@@ -121,7 +120,6 @@ function Dashboard() {
   const cryptoMoversQuery = useQuery({ queryKey: ["cmovers"], queryFn: () => getTopCryptoMovers(), refetchInterval: 60_000 });
   const stockMoversQuery = useQuery({ queryKey: ["smovers"], queryFn: () => getTrendingStocks(), refetchInterval: 60_000 });
   const pulseQuery = useQuery({ queryKey: ["pulse"], queryFn: () => getMarketPulse(), refetchInterval: 30_000 });
-  const balanceQuery = useQuery({ queryKey: ["cdcxbal"], queryFn: () => getCdcxBalance(), refetchInterval: 60_000, retry: false });
 
   const aiMut = useMutation({
     mutationFn: (q?: string) => aiAnalyze({
@@ -189,7 +187,6 @@ function Dashboard() {
             quoteMap={quoteMap}
             compareOn={compareOn} compareSyms={compareSyms} onToggleCompare={toggleCompare}
           />
-          <BalanceCard data={balanceQuery.data} loading={balanceQuery.isLoading} />
         </aside>
         <main className="col-span-6 flex flex-col gap-3 min-h-0">
           <SymbolHeader selected={selected} quote={quoteMap.get(selected.symbol)}
@@ -235,7 +232,6 @@ function Dashboard() {
           <>
             <AlertsPanel alerts={alerts} setAlerts={setAlerts} selected={selected}
               currentPrice={quoteMap.get(selected.symbol)?.price} />
-            <BalanceCard data={balanceQuery.data} loading={balanceQuery.isLoading} />
           </>
         )}
         {mobileTab === "compare" && (
