@@ -1294,8 +1294,7 @@ function OnchainDetailModal({ token, onClose }: { token: OnchainTok; onClose: ()
   const ageDays = tok.createdAt ? (Date.now() - tok.createdAt) / 86_400_000 : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="glass-strong rounded-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <DraggableModal onClose={onClose} title={`${tok.symbol} · ${tok.name}`} width={880}>
         <div className="p-4 border-b border-white/10 flex items-start gap-3">
           {tok.icon ? (
             <img src={tok.icon} alt="" className="h-11 w-11 rounded-full bg-white/5 shrink-0" />
@@ -1311,11 +1310,10 @@ function OnchainDetailModal({ token, onClose }: { token: OnchainTok; onClose: ()
             </div>
             <div className="mt-1 flex items-center gap-1.5 text-[10px] font-mono text-slate-500">
               <span className="truncate max-w-[220px] sm:max-w-none">{tok.address}</span>
-              <button onClick={copyAddr} className="hover:text-white shrink-0" title="Copy address"><Copy className="h-3 w-3" /></button>
+              <button onClick={copyAddr} className="hover:text-white shrink-0 tap" title="Copy address"><Copy className="h-3 w-3" /></button>
               {tok.pairUrl && <a href={tok.pairUrl} target="_blank" rel="noreferrer" className="hover:text-white shrink-0" title="Open on DexScreener"><ExternalLink className="h-3 w-3" /></a>}
             </div>
           </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-4 border-b border-white/5">
