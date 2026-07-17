@@ -441,7 +441,7 @@ Return this exact JSON shape:
 Include 5 trending, 3 avoid, 3 ideas. Mix stocks & crypto.`;
 
   const { text } = await generateText({
-    model: gateway("google/gemini-3.5-flash"),
+    model: gateway("google/gemini-3-flash-preview"),
     prompt,
   });
 
@@ -523,7 +523,7 @@ ${data.question ? `User question: ${data.question}` : `Provide:
 5. 3 actionable ideas (entries / invalidation levels)`}`;
 
     const { text } = await generateText({
-      model: gateway("google/gemini-3.5-flash"),
+      model: gateway("google/gemini-3-flash-preview"),
       prompt,
     });
     return { analysis: text };
