@@ -396,10 +396,12 @@ function Header({ alerts, onOpenAlerts, onOpenInstall, theme, setTheme }: { aler
             <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-emerald-400 animate-pulse-ring" />
           </div>
           <div className="min-w-0">
-            <h1 className="truncate text-base sm:text-xl font-black tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }}>
-              ALPHA <span className="bg-gradient-to-r from-indigo-300 via-cyan-200 to-emerald-300 bg-clip-text text-transparent">BRAIN</span>
+            <h1 className="truncate text-base sm:text-xl font-black tracking-tight" style={{ fontFamily: "var(--font-display)", color: "var(--foreground)" }}>
+              ALPHA <span style={{ background: "var(--grad-neon)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>BRAIN</span>
             </h1>
-            <p className="text-[9px] uppercase tracking-[0.25em] text-slate-400 -mt-0.5 font-mono">Crystal Terminal · 2026</p>
+            <p className="text-[9px] uppercase tracking-[0.25em] -mt-0.5 font-mono" style={{ color: "var(--muted-foreground)" }}>
+              {theme === "solaris" ? "Solaris Terminal · v3" : "Nebula Depth · v3"}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
