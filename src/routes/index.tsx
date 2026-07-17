@@ -805,7 +805,7 @@ function NavigatorPanel({
   quoteMap: Map<string, { price: number; changePercent: number }>;
   compareOn: boolean; compareSyms: Watch[]; onToggleCompare: (w: Watch) => void;
 }) {
-  const [tab, setTab] = useState<"watchlist" | "stocks" | "crypto">("watchlist");
+  const [tab, setTab] = useState<"watchlist" | "stocks" | "crypto" | "onchain">("watchlist");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<"symbol" | "price" | "change" | "vol">("change");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
@@ -828,7 +828,8 @@ function NavigatorPanel({
     let arr: Array<{ symbol: string; label: string; price: number; changePercent: number; volume?: number; kind: Kind }> = [];
     if (tab === "stocks") arr = (stocksAll.data ?? []).map((s) => ({ symbol: s.symbol, label: s.name, price: s.price, changePercent: s.changePercent, kind: "stock" }));
     else if (tab === "crypto") arr = (cryptoAll.data ?? []).map((t) => ({ symbol: t.symbol, label: `${t.base} · Crypto.com`, price: t.price, changePercent: t.changePercent, volume: t.volume, kind: "crypto" }));
-    else arr = watch.map((w) => { const qq = quoteMap.get(w.symbol); return { symbol: w.symbol, label: w.label ?? "", price: qq?.price ?? 0, changePercent: qq?.changePercent ?? 0, kind: w.kind }; });
+    else if (tab === "watchlist") arr = watch.map((w) => { const qq = quoteMap.get(w.symbol); return { symbol: w.symbol, label: w.label ?? "", price: qq?.price ?? 0, changePercent: qq?.changePercent ?? 0, kind: w.kind }; });
+    else arr = [];
     const qU = q.trim().toUpperCase();
     if (qU) arr = arr.filter((it) => it.symbol.includes(qU) || it.label.toUpperCase().includes(qU));
     const s = sort === "symbol" ? (a: typeof arr[0], b: typeof arr[0]) => a.symbol.localeCompare(b.symbol)
@@ -848,70 +849,78 @@ function NavigatorPanel({
     <div className="glass rounded-2xl flex flex-col min-h-0 flex-1 overflow-hidden">
       <div className="p-3 space-y-2.5 border-b border-white/5">
         <div className="glass-pill flex p-1 text-[11px]">
-          {(["watchlist", "stocks", "crypto"] as const).map((k) => (
+          {(["watchlist", "stocks", "crypto", "onchain"] as const).map((k) => (
             <button key={k} onClick={() => setTab(k)}
               className={`flex-1 py-1.5 font-semibold uppercase tracking-wide rounded-full transition ${tab === k ? "bg-white/15 text-white" : "text-slate-400"}`}>
-              {k === "watchlist" ? `List · ${watch.length}` : k === "stocks" ? "Stocks" : "Crypto"}
+              {k === "watchlist" ? `List · ${watch.length}` : k === "stocks" ? "Stocks" : k === "crypto" ? "CEX" : "Onchain"}
             </button>
           ))}
         </div>
-        <div className="relative">
-          <input value={q} onChange={(e) => setQ(e.target.value)}
-            placeholder={tab === "crypto" ? "Search Crypto.com tokens…" : tab === "stocks" ? "Filter stocks…" : "Type symbol + Enter (BTCUSDT / SPY)"}
-            className="w-full glass rounded-lg pl-8 pr-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-slate-500"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && tab === "watchlist" && q) {
-                const raw = q.toUpperCase();
-                const kind: Kind = raw.includes("_") || raw.endsWith("USDT") || raw.endsWith("USD") ? "crypto" : "stock";
-                addAndSelect({ symbol: raw, kind }); setQ("");
-              }
-            }} />
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500" />
-        </div>
-        <div className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider">
-          <span className="text-slate-500 mr-1">Sort</span>
-          {(["symbol", "price", "change", "vol"] as const).map((s) => (
-            <button key={s} onClick={() => { if (sort === s) setDir(dir === "asc" ? "desc" : "asc"); else { setSort(s); setDir("desc"); } }}
-              className={`px-2 py-1 rounded-full transition ${sort === s ? "bg-white/15 text-white" : "text-slate-400 hover:bg-white/5"}`}>
-              {s}{sort === s ? (dir === "asc" ? " ↑" : " ↓") : ""}
-            </button>
-          ))}
-        </div>
-      </div>
-      <VirtualList
-        items={items} height={520}
-        renderItem={(it) => {
-          const up = it.changePercent >= 0;
-          const isSel = it.symbol === selected.symbol;
-          const inCompare = compareSet.has(it.symbol);
-          return (
-            <div className={`group flex items-center border-b border-white/5 ${isSel ? "bg-white/10" : ""}`}>
-              <button onClick={() => addAndSelect({ symbol: it.symbol, kind: it.kind, label: it.label })}
-                className="flex-1 min-w-0 px-3 py-2.5 flex items-center justify-between hover:bg-white/5 transition text-left min-h-[52px]">
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                    {clean(it.symbol)}
-                    <span className={`text-[8px] font-mono uppercase px-1 py-px rounded ${it.kind === "crypto" ? "bg-indigo-500/25 text-indigo-300" : "bg-cyan-500/25 text-cyan-300"}`}>{it.kind}</span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 truncate max-w-[160px]">{it.label}</div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-[11px] font-mono text-slate-200">${fmt(it.price)}</div>
-                  <div className={`text-[10px] font-mono ${up ? "text-emerald-400" : "text-rose-400"}`}>
-                    {isFinite(it.changePercent) ? `${up ? "+" : ""}${it.changePercent.toFixed(2)}%` : "—"}
-                  </div>
-                </div>
-              </button>
-              <button onClick={() => onToggleCompare({ symbol: it.symbol, kind: it.kind, label: it.label })}
-                title="Add to compare"
-                className={`shrink-0 h-11 w-10 grid place-items-center transition ${inCompare ? "text-primary" : "text-slate-500 hover:text-white opacity-0 group-hover:opacity-100"} ${compareOn ? "opacity-100" : ""}`}>
-                <GitCompareArrows className="h-4 w-4" />
-              </button>
+        {tab !== "onchain" && (
+          <>
+            <div className="relative">
+              <input value={q} onChange={(e) => setQ(e.target.value)}
+                placeholder={tab === "crypto" ? "Search Crypto.com tokens…" : tab === "stocks" ? "Filter stocks…" : "Type symbol + Enter (BTCUSDT / SPY)"}
+                className="w-full glass rounded-lg pl-8 pr-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-slate-500"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && tab === "watchlist" && q) {
+                    const raw = q.toUpperCase();
+                    const kind: Kind = raw.includes("_") || raw.endsWith("USDT") || raw.endsWith("USD") ? "crypto" : "stock";
+                    addAndSelect({ symbol: raw, kind }); setQ("");
+                  }
+                }} />
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500" />
             </div>
-          );
-        }}
-        loading={(tab === "stocks" && stocksAll.isLoading) || (tab === "crypto" && cryptoAll.isLoading)}
-      />
+            <div className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider">
+              <span className="text-slate-500 mr-1">Sort</span>
+              {(["symbol", "price", "change", "vol"] as const).map((s) => (
+                <button key={s} onClick={() => { if (sort === s) setDir(dir === "asc" ? "desc" : "asc"); else { setSort(s); setDir("desc"); } }}
+                  className={`px-2 py-1 rounded-full transition ${sort === s ? "bg-white/15 text-white" : "text-slate-400 hover:bg-white/5"}`}>
+                  {s}{sort === s ? (dir === "asc" ? " ↑" : " ↓") : ""}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      {tab === "onchain" ? (
+        <OnchainExplorer />
+      ) : (
+        <VirtualList
+          items={items} height={520}
+          renderItem={(it) => {
+            const up = it.changePercent >= 0;
+            const isSel = it.symbol === selected.symbol;
+            const inCompare = compareSet.has(it.symbol);
+            return (
+              <div className={`group flex items-center border-b border-white/5 ${isSel ? "bg-white/10" : ""}`}>
+                <button onClick={() => addAndSelect({ symbol: it.symbol, kind: it.kind, label: it.label })}
+                  className="flex-1 min-w-0 px-3 py-2.5 flex items-center justify-between hover:bg-white/5 transition text-left min-h-[52px]">
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      {clean(it.symbol)}
+                      <span className={`text-[8px] font-mono uppercase px-1 py-px rounded ${it.kind === "crypto" ? "bg-indigo-500/25 text-indigo-300" : "bg-cyan-500/25 text-cyan-300"}`}>{it.kind}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 truncate max-w-[160px]">{it.label}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-[11px] font-mono text-slate-200">${fmt(it.price)}</div>
+                    <div className={`text-[10px] font-mono ${up ? "text-emerald-400" : "text-rose-400"}`}>
+                      {isFinite(it.changePercent) ? `${up ? "+" : ""}${it.changePercent.toFixed(2)}%` : "—"}
+                    </div>
+                  </div>
+                </button>
+                <button onClick={() => onToggleCompare({ symbol: it.symbol, kind: it.kind, label: it.label })}
+                  title="Add to compare"
+                  className={`shrink-0 h-11 w-10 grid place-items-center transition ${inCompare ? "text-primary" : "text-slate-500 hover:text-white opacity-0 group-hover:opacity-100"} ${compareOn ? "opacity-100" : ""}`}>
+                  <GitCompareArrows className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          }}
+          loading={(tab === "stocks" && stocksAll.isLoading) || (tab === "crypto" && cryptoAll.isLoading)}
+        />
+      )}
     </div>
   );
 }
