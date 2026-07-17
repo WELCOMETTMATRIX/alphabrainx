@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { createChart, CandlestickSeries, LineSeries, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import {
@@ -1587,9 +1588,11 @@ function DraggableModal({ onClose, title, width = 720, children }: {
   };
   const onPointerUp = () => { dragRef.current = null; };
 
+  if (typeof document === "undefined") return null;
+
   if (isMobile) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm pb-safe" onClick={onClose}>
+    return createPortal(
+      <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/60 backdrop-blur-sm pb-safe" onClick={onClose}>
         <div className="drag-modal w-full max-w-lg max-h-[92vh] flex flex-col rounded-t-3xl rounded-b-none" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-white/10">
             <div className="mx-auto h-1 w-10 rounded-full bg-white/25" />
@@ -1598,17 +1601,18 @@ function DraggableModal({ onClose, title, width = 720, children }: {
           <div className="px-4 py-1 text-[11px] font-mono text-slate-400 border-b border-white/5 truncate">{title}</div>
           <div className="flex-1 overflow-y-auto scroll-thin overscroll-contain">{children}</div>
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
   const w = Math.min(width, window.innerWidth - 40);
   const h = minimized ? 56 : Math.min(window.innerHeight * 0.86, 780);
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="drag-modal flex flex-col overflow-hidden"
-        style={{ left: pos?.x ?? 0, top: pos?.y ?? 0, width: w, height: h }}>
+      <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="drag-modal flex flex-col overflow-hidden z-[9999]"
+        style={{ left: pos?.x ?? 0, top: pos?.y ?? 0, width: w, height: h, position: "fixed" }}>
         <div className="drag-handle flex items-center gap-2 px-3 h-11 border-b border-white/10 bg-white/5"
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
           <span className="flex gap-1.5 shrink-0">
@@ -1624,7 +1628,8 @@ function DraggableModal({ onClose, title, width = 720, children }: {
         </div>
         {!minimized && <div className="flex-1 overflow-y-auto scroll-thin">{children}</div>}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 
