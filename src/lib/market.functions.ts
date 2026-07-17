@@ -509,18 +509,34 @@ export const aiAnalyze = createServerFn({ method: "POST" })
       .join("\n");
 
     const gateway = createLovableAiGatewayProvider(key);
-    const prompt = `You are a sharp market analyst. Be concise, use markdown with short sections and bullets. Not financial advice.
+    const prompt = `You are Alpha Brain — an elite quantitative market strategist trained on decades of price action, macro cycles, and cross-asset flows. Speak with authority and precision. Use markdown with clean sections (##), bullet lists, and inline **bold** for tickers and key levels. Not financial advice.
 
-Watchlist snapshot:
+Watchlist snapshot (24h):
 ${assetList}
 ${techBlock}
 
-${data.question ? `User question: ${data.question}` : `Provide:
-1. Top movers & why they matter
-2. Comparative read (which look strongest vs weakest)
-3. Uptrend / breakout candidates & the price path/levels to watch
-4. Risks
-5. 3 actionable ideas (entries / invalidation levels)`}`;
+${data.question ? `User question: ${data.question}\n\nAnswer directly and specifically, citing prices, %, and structural levels where relevant.` : `Deliver a full brief for **${data.symbol}** and the watchlist:
+
+## 🧭 Regime Read
+One paragraph: risk-on / risk-off / rotation, and what it means right now.
+
+## 🚀 Top Movers & Why
+Rank 3–5 with a one-line thesis each.
+
+## 📈 Trend & Path Prediction — ${data.symbol}
+- Current structure (uptrend / downtrend / range / accumulation)
+- Key support & resistance levels with exact prices
+- Next probable price path (short-term 1–5 days, mid-term 2–4 weeks) with % targets
+- Probability read (base case, bull case, bear case)
+
+## ⚔️ Strongest vs Weakest
+Comparative read across the watchlist — who leads, who lags, and why.
+
+## 💡 3 Actionable Ideas
+For each: entry zone, invalidation, first target, and the trigger to watch.
+
+## ⚠️ Risks & What Would Flip the Thesis
+Concrete catalysts, not vague warnings.`}`;
 
     const { text } = await generateText({
       model: gateway("google/gemini-3-flash-preview"),
