@@ -744,6 +744,20 @@ function ScanPanel({ data, loading, error, onRun, onPick, scope, setScope }: {
           {loading ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Scanning…</> : <><Zap className="h-3.5 w-3.5" /> Run Scan</>}
         </button>
       </div>
+      {setScope && (
+        <div className="mb-3">
+          <SegmentedTabs
+            value={scope ?? "cross"}
+            onChange={(v) => setScope(v as "cross" | "stocks" | "crypto" | "watchlist")}
+            items={[
+              { value: "cross", label: "All Markets" },
+              { value: "stocks", label: "Stocks" },
+              { value: "crypto", label: "Crypto" },
+              { value: "watchlist", label: "Watchlist" },
+            ]}
+          />
+        </div>
+      )}
       {error && <div className="text-xs text-rose-400">Error: {error.message}</div>}
       {!scan && !loading && !error && (
         <div className="text-xs text-slate-400 p-3 rounded-xl glass">
