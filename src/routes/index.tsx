@@ -143,7 +143,7 @@ function Dashboard() {
     }),
     onSuccess: (r) => setAiText(r.analysis),
   });
-  const scanMut = useMutation({ mutationFn: () => aiMarketScan() });
+  const scanMut = useMutation({ mutationFn: () => aiMarketScan({ data: { scope: scanScope, watchlist: scanScope === "watchlist" ? watch.map((w) => w.symbol) : undefined } }) });
 
   // -------- Alerts polling --------
   useEffect(() => {
