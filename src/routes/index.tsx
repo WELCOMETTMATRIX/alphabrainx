@@ -313,9 +313,9 @@ function ToastHost() {
 // ============================================================================
 // HEADER
 // ============================================================================
-function Header({ alerts, onOpenAlerts }: { alerts: number; onOpenAlerts: () => void }) {
+function Header({ alerts, onOpenAlerts, onOpenInstall }: { alerts: number; onOpenAlerts: () => void; onOpenInstall: () => void }) {
   return (
-    <header className="sticky top-0 z-20 px-3 pt-3">
+    <header className="sticky top-0 z-20 px-3 pt-3 pt-safe">
       <div className="glass-strong rounded-2xl grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 sm:flex sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative shrink-0">
@@ -332,9 +332,14 @@ function Header({ alerts, onOpenAlerts }: { alerts: number; onOpenAlerts: () => 
             <p className="text-[9px] uppercase tracking-[0.25em] text-slate-400 -mt-0.5 font-mono">Crystal Terminal · 2026</p>
           </div>
         </div>
-        <div className="hidden sm:flex items-center gap-2 shrink-0">
-          <SearchBox />
-          <button onClick={onOpenAlerts} className="relative h-10 w-10 grid place-items-center rounded-xl glass hover:bg-white/10 transition">
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden sm:block"><SearchBox /></div>
+          <button onClick={onOpenInstall} title="Install app"
+            className="tap h-10 px-3 sm:px-3 grid place-items-center rounded-xl glass hover:bg-white/10 flex items-center gap-1.5">
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs font-semibold uppercase tracking-wider">Install</span>
+          </button>
+          <button onClick={onOpenAlerts} title="Alerts" className="tap relative h-10 w-10 grid place-items-center rounded-xl glass hover:bg-white/10">
             <Bell className="h-4 w-4" />
             {alerts > 0 && <span className="absolute -top-1 -right-1 text-[9px] font-bold bg-rose-500 text-white rounded-full px-1 min-w-[14px] text-center">{alerts}</span>}
           </button>
