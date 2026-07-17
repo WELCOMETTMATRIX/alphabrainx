@@ -957,7 +957,7 @@ function AlertsPanel({ alerts, setAlerts, selected, currentPrice }: {
 }) {
   const [dir, setDir] = useState<"above" | "below">("above");
   const [target, setTarget] = useState<string>("");
-  useEffect(() => { setTarget(currentPrice ? currentPrice.toFixed(currentPrice >= 1 ? 2 : 4) : ""); }, [selected.symbol, currentPrice]);
+  useEffect(() => { setTarget(currentPrice ? (currentPrice >= 1 ? currentPrice.toFixed(2) : currentPrice.toPrecision(4)) : ""); }, [selected.symbol, currentPrice]);
 
   const create = () => {
     const t = parseFloat(target); if (!t || Number.isNaN(t)) return;
