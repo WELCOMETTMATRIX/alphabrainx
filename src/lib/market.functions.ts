@@ -466,8 +466,11 @@ type AssetSummary = {
 export const aiAnalyze = createServerFn({ method: "POST" })
   .inputValidator((d: { assets: AssetSummary[]; candles?: Candle[]; symbol?: string; question?: string }) => d)
   .handler(async ({ data }) => {
+    assertAiBudget("analyze");
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("Missing LOVABLE_API_KEY");
+    const question = data.question ? clampPrompt(data.question, 500) : undefined;
+
 
     // Compute simple technicals for the focus symbol
     let techBlock = "";
