@@ -1398,8 +1398,7 @@ function OnchainDetailModal({ token, onClose }: { token: OnchainTok; onClose: ()
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </DraggableModal>
   );
 }
 
