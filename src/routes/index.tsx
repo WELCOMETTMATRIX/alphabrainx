@@ -160,7 +160,7 @@ function SearchBox() {
       />
       {open && q.length >= 2 && (
         <div className="absolute z-20 mt-1 w-full rounded-lg border border-border bg-popover shadow-xl max-h-72 overflow-auto">
-          {search.data?.length ? search.data.map((r) => (
+          {search.data?.length ? search.data.map((r: { symbol: string; description: string }) => (
             <div key={r.symbol} className="px-3 py-2 text-sm hover:bg-secondary cursor-pointer flex justify-between"
               onMouseDown={() => { window.dispatchEvent(new CustomEvent("add-symbol", { detail: { symbol: r.symbol, kind: "stock", label: r.description } })); setQ(""); setOpen(false); }}>
               <span className="font-medium">{r.symbol}</span>
