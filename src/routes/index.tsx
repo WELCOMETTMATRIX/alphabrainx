@@ -991,7 +991,10 @@ function NavigatorPanel({
             const inCompare = compareSet.has(it.symbol);
             return (
               <div className={`group flex items-center border-b border-white/5 ${isSel ? "bg-white/10" : ""}`}>
-                <button onClick={() => addAndSelect({ symbol: it.symbol, kind: it.kind, label: it.label })}
+                <button onClick={() => {
+                  const w: Watch = { symbol: it.symbol, kind: it.kind, label: it.label };
+                  if (onOpenAsset) onOpenAsset(w); else addAndSelect(w);
+                }}
                   className="flex-1 min-w-0 px-3 py-2.5 flex items-center justify-between hover:bg-white/5 transition text-left min-h-[52px]">
                   <div className="min-w-0">
                     <div className="text-xs font-bold text-white flex items-center gap-1.5">
