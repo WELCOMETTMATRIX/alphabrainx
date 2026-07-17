@@ -650,3 +650,225 @@ function AIPanel({ text, loading, error, onRun, question, setQuestion, onAsk, sy
     </div>
   );
 }
+
+// ============================================================================
+// Obsidian Pro Navigator: Watchlist / All Stocks / All Crypto (Crypto.com)
+// ============================================================================
+
+function NavigatorPanel({
+  tab, setTab, watch, setWatch, selected, setSelected, watchQuotes,
+}: {
+  tab: "watchlist" | "stocks" | "crypto";
+  setTab: (t: "watchlist" | "stocks" | "crypto") => void;
+  watch: Watch[];
+  setWatch: (fn: (w: Watch[]) => Watch[]) => void;
+  selected: Watch;
+  setSelected: (w: Watch) => void;
+  watchQuotes: Array<{ symbol: string; price: number; changePercent: number }>;
+}) {
+  const [q, setQ] = useState("");
+
+  useEffect(() => {
+    const h = (e: Event) => {
+      const d = (e as CustomEvent).detail as Watch;
+      setWatch((prev) => (prev.find((w) => w.symbol === d.symbol) ? prev : [...prev, d]));
+    };
+    window.addEventListener("add-symbol", h);
+    return () => window.removeEventListener("add-symbol", h);
+  }, [setWatch]);
+
+  const stocksAll = useQuery({
+    queryKey: ["all-stocks"],
+    queryFn: () => getAllStocks(),
+    refetchInterval: 30_000,
+    enabled: tab === "stocks",
+  });
+  const cryptoAll = useQuery({
+    queryKey: ["all-crypto"],
+    queryFn: () => getAllCryptoTokens(),
+    refetchInterval: 15_000,
+    enabled: tab === "crypto",
+  });
+
+  const addAndSelect = (w: Watch) => {
+    setWatch((prev) => (prev.find((x) => x.symbol === w.symbol) ? prev : [...prev, w]));
+    setSelected(w);
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="p-3 border-b border-white/5 space-y-3">
+        <div className="flex bg-black/40 p-1 rounded-md border border-white/5 text-[11px]">
+          {(["watchlist", "stocks", "crypto"] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`flex-1 py-1.5 font-semibold uppercase tracking-wide rounded transition ${
+                tab === k ? "bg-white/10 text-white" : "text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              {k === "watchlist" ? `List · ${watch.length}` : k === "stocks" ? "Stocks" : "Crypto"}
+            </button>
+          ))}
+        </div>
+        <div className="relative">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={tab === "crypto" ? "Search Crypto.com tokens…" : tab === "stocks" ? "Filter stocks…" : "Symbol to add (BTC_USDT / SPY)"}
+            className="w-full bg-black/40 border border-white/5 rounded px-8 py-1.5 text-xs focus:outline-none focus:border-indigo-500/50"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && tab === "watchlist" && q) {
+                const raw = q.toUpperCase();
+                const kind: Kind = raw.includes("_") || raw.endsWith("USDT") || raw.endsWith("USD") ? "crypto" : "stock";
+                addAndSelect({ symbol: raw, kind });
+                setQ("");
+              }
+            }}
+          />
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-slate-600" />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+        {tab === "watchlist" && (
+          <>
+            {watch.map((w) => {
+              const qv = watchQuotes.find((x) => x.symbol === w.symbol);
+              const up = (qv?.changePercent ?? 0) >= 0;
+              const isSel = selected.symbol === w.symbol;
+              return (
+                <button
+                  key={w.symbol}
+                  onClick={() => setSelected(w)}
+                  className={`w-full p-3 flex items-center justify-between hover:bg-white/5 transition text-left ${
+                    isSel ? `border-l-2 ${up ? "border-emerald-500/70 bg-emerald-500/5" : "border-rose-500/70 bg-rose-500/5"}` : "border-l-2 border-transparent"
+                  }`}
+                >
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      {w.symbol.replace("USDT", "")}
+                      <span className={`text-[9px] font-mono uppercase px-1 py-px rounded ${w.kind === "crypto" ? "bg-indigo-500/20 text-indigo-300" : "bg-cyan-500/20 text-cyan-300"}`}>
+                        {w.kind}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 truncate max-w-[160px]">{w.label ?? ""}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-mono text-white">${fmt(qv?.price)}</div>
+                    <div className={`text-[10px] font-mono ${up ? "text-emerald-400" : "text-rose-400"}`}>
+                      {qv ? `${up ? "+" : ""}${qv.changePercent.toFixed(2)}%` : "—"}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </>
+        )}
+
+        {tab === "stocks" && (
+          <UniverseList
+            loading={stocksAll.isLoading}
+            items={(stocksAll.data ?? [])
+              .filter((s) => !q || s.symbol.includes(q.toUpperCase()) || s.name.toLowerCase().includes(q.toLowerCase()))
+              .map((s) => ({ symbol: s.symbol, label: s.name, price: s.price, changePercent: s.changePercent, kind: "stock" as const }))}
+            onPick={addAndSelect}
+            selectedSymbol={selected.symbol}
+          />
+        )}
+
+        {tab === "crypto" && (
+          <UniverseList
+            loading={cryptoAll.isLoading}
+            items={(cryptoAll.data ?? [])
+              .filter((t) => !q || t.base.includes(q.toUpperCase()) || t.symbol.includes(q.toUpperCase()))
+              .slice(0, 300)
+              .map((t) => ({ symbol: t.symbol, label: `${t.base} · Crypto.com`, price: t.price, changePercent: t.changePercent, kind: "crypto" as const }))}
+            onPick={addAndSelect}
+            selectedSymbol={selected.symbol}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UniverseList({
+  loading, items, onPick, selectedSymbol,
+}: {
+  loading: boolean;
+  items: Array<{ symbol: string; label: string; price: number; changePercent: number; kind: Kind }>;
+  onPick: (w: Watch) => void;
+  selectedSymbol: string;
+}) {
+  if (loading && !items.length) {
+    return <div className="p-4 text-[11px] text-slate-500 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Loading universe…</div>;
+  }
+  if (!items.length) return <div className="p-4 text-[11px] text-slate-500">No matches.</div>;
+  return (
+    <>
+      {items.map((it) => {
+        const up = it.changePercent >= 0;
+        const isSel = it.symbol === selectedSymbol;
+        return (
+          <button
+            key={it.symbol}
+            onClick={() => onPick({ symbol: it.symbol, kind: it.kind, label: it.label })}
+            className={`w-full p-2.5 flex items-center justify-between hover:bg-white/5 transition text-left ${isSel ? "bg-white/5" : ""}`}
+          >
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                {it.symbol.replace("USDT", "").replace("USD", "")}
+                <span className={`text-[8px] font-mono uppercase px-1 rounded ${it.kind === "crypto" ? "bg-indigo-500/20 text-indigo-300" : "bg-cyan-500/20 text-cyan-300"}`}>
+                  {it.kind}
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-500 truncate max-w-[160px]">{it.label}</div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="text-[11px] font-mono text-slate-200">${fmt(it.price)}</div>
+              <div className={`text-[10px] font-mono ${up ? "text-emerald-400" : "text-rose-400"}`}>
+                {isFinite(it.changePercent) ? `${up ? "+" : ""}${it.changePercent.toFixed(2)}%` : "—"}
+              </div>
+            </div>
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
+function DailyMovers({
+  title, gainers, losers, onPick, stripUsdt,
+}: {
+  title: string;
+  gainers: Array<{ symbol: string; price?: number; changePercent: number }>;
+  losers: Array<{ symbol: string; price?: number; changePercent: number }>;
+  onPick: (sym: string) => void;
+  stripUsdt?: boolean;
+}) {
+  const clean = (s: string) => (stripUsdt ? s.replace("USDT", "").replace("USD", "") : s);
+  return (
+    <div>
+      <div className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-1.5">
+        <Flame className="h-3 w-3 text-indigo-400" /> {title}
+      </div>
+      <div className="space-y-1">
+        {gainers.slice(0, 4).map((g) => (
+          <button key={"g" + g.symbol} onClick={() => onPick(g.symbol)} className="w-full flex items-center justify-between text-[11px] hover:bg-white/5 px-1 py-1 rounded">
+            <span className="bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-bold font-mono text-[10px]">+{g.changePercent.toFixed(1)}%</span>
+            <span className="text-white font-medium">{clean(g.symbol)}</span>
+            <span className="text-slate-500 font-mono text-[10px]">${fmt(g.price)}</span>
+          </button>
+        ))}
+        {losers.slice(0, 4).map((g) => (
+          <button key={"l" + g.symbol} onClick={() => onPick(g.symbol)} className="w-full flex items-center justify-between text-[11px] hover:bg-white/5 px-1 py-1 rounded">
+            <span className="bg-rose-500/10 text-rose-400 px-1.5 py-0.5 rounded font-bold font-mono text-[10px]">{g.changePercent.toFixed(1)}%</span>
+            <span className="text-white font-medium">{clean(g.symbol)}</span>
+            <span className="text-slate-500 font-mono text-[10px]">${fmt(g.price)}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
