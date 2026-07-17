@@ -892,12 +892,13 @@ function AIPanel({ text, loading, error, onRun, question, setQuestion, onAsk, sy
 // ============================================================================
 function NavigatorPanel({
   watch, setWatch, selected, setSelected, quoteMap,
-  compareOn, compareSyms, onToggleCompare,
+  compareOn, compareSyms, onToggleCompare, onOpenAsset,
 }: {
   watch: Watch[]; setWatch: (fn: (w: Watch[]) => Watch[]) => void;
   selected: Watch; setSelected: (w: Watch) => void;
   quoteMap: Map<string, { price: number; changePercent: number }>;
   compareOn: boolean; compareSyms: Watch[]; onToggleCompare: (w: Watch) => void;
+  onOpenAsset?: (w: Watch) => void;
 }) {
   const [tab, setTab] = useState<"watchlist" | "stocks" | "crypto" | "onchain">("watchlist");
   const [q, setQ] = useState("");
