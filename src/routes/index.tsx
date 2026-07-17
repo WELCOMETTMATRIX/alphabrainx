@@ -245,7 +245,10 @@ function SearchBox() {
 }
 
 function PulseBar({ pulse }: { pulse?: { stocks: Array<{ symbol: string; price: number; changePercent: number } | null>; crypto: Array<{ symbol: string; price: number; changePercent: number } | null> } }) {
-  const items = [...(pulse?.stocks ?? []), ...(pulse?.crypto ?? [])].filter(Boolean) as Array<{ symbol: string; price: number; changePercent: number }>;
+  const items = ([...(pulse?.stocks ?? []), ...(pulse?.crypto ?? [])].filter(
+    (it): it is { symbol: string; price: number; changePercent: number } =>
+      !!it && typeof it.changePercent === "number" && !Number.isNaN(it.changePercent)
+  ));
   return (
     <div className="mx-auto max-w-[1500px] px-4 pt-4">
       <div className="glass rounded-2xl p-3 flex items-center gap-2 overflow-x-auto">
