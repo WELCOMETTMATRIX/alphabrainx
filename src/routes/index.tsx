@@ -862,14 +862,16 @@ function NavigatorPanel({
   return (
     <div className="glass rounded-2xl flex flex-col min-h-0 flex-1 overflow-hidden">
       <div className="p-3 space-y-2.5 border-b border-white/5">
-        <div className="glass-pill flex p-1 text-[11px]">
-          {(["watchlist", "stocks", "crypto", "onchain"] as const).map((k) => (
-            <button key={k} onClick={() => setTab(k)}
-              className={`flex-1 py-1.5 font-semibold uppercase tracking-wide rounded-full transition ${tab === k ? "bg-white/15 text-white" : "text-slate-400"}`}>
-              {k === "watchlist" ? `List · ${watch.length}` : k === "stocks" ? "Stocks" : k === "crypto" ? "CEX" : "Onchain"}
-            </button>
-          ))}
-        </div>
+        <SegmentedTabs
+          value={tab}
+          onChange={(v) => setTab(v as typeof tab)}
+          items={[
+            { value: "watchlist", label: `List · ${watch.length}` },
+            { value: "stocks", label: "Stocks" },
+            { value: "crypto", label: "CEX" },
+            { value: "onchain", label: "Onchain" },
+          ]}
+        />
         {tab !== "onchain" && (
           <>
             <div className="relative">
