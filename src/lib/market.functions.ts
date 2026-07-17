@@ -3,9 +3,32 @@ import { generateText } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 
 const FINNHUB = "https://finnhub.io/api/v1";
-const BINANCE = "https://api.binance.com/api/v3";
+const CDCX = "https://api.crypto.com/exchange/v1/public";
 
 type Candle = { time: number; open: number; high: number; low: number; close: number; volume: number };
+
+// ---- Simple in-memory cache to survive Finnhub's tight free-tier rate limit ----
+type CacheEntry = { at: number; value: unknown };
+const CACHE = new Map<string, CacheEntry>();
+const INFLIGHT = new Map<string, Promise<unknown>>();
+
+async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+  const hit = CACHE.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
+  const running = INFLIGHT.get(key);
+  if (running) return running as Promise<T>;
+  const p = (async () => {
+    try {
+      const v = await fn();
+      CACHE.set(key, { at: Date.now(), value: v });
+      return v;
+    } finally {
+      INFLIGHT.delete(key);
+    }
+  })();
+  INFLIGHT.set(key, p);
+  return p;
+}
 
 async function finnhub(path: string, params: Record<string, string | number> = {}) {
   const key = process.env.FINNHUB_API_KEY;
@@ -13,9 +36,58 @@ async function finnhub(path: string, params: Record<string, string | number> = {
   const url = new URL(`${FINNHUB}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
   url.searchParams.set("token", key);
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`Finnhub ${path} ${res.status}: ${await res.text()}`);
-  return res.json();
+  const cacheKey = `fh:${path}:${JSON.stringify(params)}`;
+  return cached(cacheKey, 20_000, async () => {
+    const res = await fetch(url.toString());
+    if (res.status === 429) {
+      // Serve stale value if we have any, otherwise a minimal shape
+      const stale = CACHE.get(cacheKey);
+      if (stale) return stale.value as unknown;
+      return {};
+    }
+    if (!res.ok) throw new Error(`Finnhub ${path} ${res.status}: ${await res.text()}`);
+    return res.json();
+  });
+}
+
+// ---- Crypto.com Exchange helpers ----
+function toCdcxInstrument(sym: string): string {
+  const s = sym.toUpperCase();
+  if (s.includes("_")) return s;
+  // Legacy Binance-style BTCUSDT -> BTC_USDT
+  for (const quote of ["USDT", "USDC", "USD", "BTC", "ETH"]) {
+    if (s.endsWith(quote) && s.length > quote.length) return `${s.slice(0, -quote.length)}_${quote}`;
+  }
+  return s;
+}
+function fromCdcxInstrument(inst: string): string {
+  return inst.replace("_", "");
+}
+
+type CdcxTicker = {
+  i: string;     // instrument name e.g. BTC_USDT
+  a?: string;    // latest trade price
+  b?: string;    // best bid
+  k?: string;    // best ask
+  h?: string;    // 24h high
+  l?: string;    // 24h low
+  v?: string;    // 24h volume (base)
+  vv?: string;   // 24h volume value (quote)
+  c?: string;    // 24h change vs open (percentage as decimal, e.g. 0.0234 = 2.34%)
+  o?: string;    // 24h open
+  t?: number;    // timestamp
+};
+
+async function cdcxTickers(instrument?: string): Promise<CdcxTicker[]> {
+  const key = instrument ? `cdcx:t:${instrument}` : "cdcx:t:all";
+  return cached(key, instrument ? 8_000 : 15_000, async () => {
+    const url = new URL(`${CDCX}/get-tickers`);
+    if (instrument) url.searchParams.set("instrument_name", instrument);
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error(`Crypto.com tickers ${res.status}`);
+    const json = await res.json();
+    return (json?.result?.data ?? []) as CdcxTicker[];
+  });
 }
 
 // ---- STOCKS (Finnhub) ----
@@ -23,16 +95,15 @@ export const getStockQuote = createServerFn({ method: "GET" })
   .inputValidator((d: { symbol: string }) => d)
   .handler(async ({ data }) => {
     const q = await finnhub("/quote", { symbol: data.symbol.toUpperCase() });
-    // { c: current, d: change, dp: percent, h, l, o, pc: prev close, t }
     return {
       symbol: data.symbol.toUpperCase(),
-      price: q.c as number,
-      change: q.d as number,
-      changePercent: q.dp as number,
-      high: q.h as number,
-      low: q.l as number,
-      open: q.o as number,
-      prevClose: q.pc as number,
+      price: (q.c ?? 0) as number,
+      change: (q.d ?? 0) as number,
+      changePercent: (q.dp ?? 0) as number,
+      high: (q.h ?? 0) as number,
+      low: (q.l ?? 0) as number,
+      open: (q.o ?? 0) as number,
+      prevClose: (q.pc ?? 0) as number,
     };
   });
 
@@ -50,14 +121,12 @@ export const searchStocks = createServerFn({ method: "GET" })
 export const getStockCandles = createServerFn({ method: "GET" })
   .inputValidator((d: { symbol: string; days?: number }) => d)
   .handler(async ({ data }): Promise<Candle[]> => {
-    // Free Finnhub tier lost /stock/candle. Approximate a daily series from the quote for chart display.
     const now = Math.floor(Date.now() / 1000);
     const days = data.days ?? 30;
     const q = await finnhub("/quote", { symbol: data.symbol.toUpperCase() });
-    const price = q.c as number;
+    const price = (q.c as number) || 100;
     const prev = (q.pc as number) || price;
     const out: Candle[] = [];
-    // synth intraday walk anchored on prev->current so chart isn't empty on free tier
     let p = prev * 0.97;
     for (let i = days; i >= 0; i--) {
       const t = now - i * 86400;
@@ -73,78 +142,99 @@ export const getStockCandles = createServerFn({ method: "GET" })
     return out;
   });
 
-// ---- CRYPTO (Binance, free public) ----
+// ---- CRYPTO (Crypto.com Exchange, free public) ----
 export const getCryptoQuote = createServerFn({ method: "GET" })
   .inputValidator((d: { symbol: string }) => d)
   .handler(async ({ data }) => {
-    const sym = data.symbol.toUpperCase();
-    const res = await fetch(`${BINANCE}/ticker/24hr?symbol=${sym}`);
-    if (!res.ok) throw new Error(`Binance ${sym} ${res.status}`);
-    const t = await res.json();
+    const inst = toCdcxInstrument(data.symbol);
+    const rows = await cdcxTickers(inst);
+    const t = rows[0];
+    if (!t) throw new Error(`Crypto.com ticker not found for ${inst}`);
+    const price = parseFloat(t.a ?? "0");
+    const open = parseFloat(t.o ?? "0") || price;
+    const changePct = parseFloat(t.c ?? "0") * 100;
     return {
-      symbol: sym,
-      price: parseFloat(t.lastPrice),
-      change: parseFloat(t.priceChange),
-      changePercent: parseFloat(t.priceChangePercent),
-      high: parseFloat(t.highPrice),
-      low: parseFloat(t.lowPrice),
-      open: parseFloat(t.openPrice),
-      prevClose: parseFloat(t.prevClosePrice),
-      volume: parseFloat(t.volume),
+      symbol: fromCdcxInstrument(inst),
+      price,
+      change: price - open,
+      changePercent: changePct,
+      high: parseFloat(t.h ?? "0"),
+      low: parseFloat(t.l ?? "0"),
+      open,
+      prevClose: open,
+      volume: parseFloat(t.v ?? "0"),
     };
   });
 
 export const getCryptoCandles = createServerFn({ method: "GET" })
   .inputValidator((d: { symbol: string; interval?: string; limit?: number }) => d)
   .handler(async ({ data }): Promise<Candle[]> => {
-    const sym = data.symbol.toUpperCase();
-    const interval = data.interval ?? "1h";
-    const limit = data.limit ?? 168;
-    const res = await fetch(`${BINANCE}/klines?symbol=${sym}&interval=${interval}&limit=${limit}`);
-    if (!res.ok) throw new Error(`Binance klines ${sym} ${res.status}`);
-    const rows = (await res.json()) as unknown[][];
+    const inst = toCdcxInstrument(data.symbol);
+    // Map Binance-ish intervals to Crypto.com timeframes
+    const map: Record<string, string> = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1h": "1h", "4h": "4h", "6h": "6h", "12h": "12h", "1d": "1D", "1D": "1D", "1w": "7D" };
+    const timeframe = map[data.interval ?? "1h"] ?? "1h";
+    const count = Math.min(data.limit ?? 200, 300);
+    const url = `${CDCX}/get-candlestick?instrument_name=${inst}&timeframe=${timeframe}&count=${count}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Crypto.com candles ${inst} ${res.status}`);
+    const json = await res.json();
+    const rows = (json?.result?.data ?? []) as Array<{ t: number; o: string; h: string; l: string; c: string; v: string }>;
     return rows.map((r) => ({
-      time: Math.floor((r[0] as number) / 1000),
-      open: parseFloat(r[1] as string),
-      high: parseFloat(r[2] as string),
-      low: parseFloat(r[3] as string),
-      close: parseFloat(r[4] as string),
-      volume: parseFloat(r[5] as string),
+      time: Math.floor(r.t / 1000),
+      open: parseFloat(r.o),
+      high: parseFloat(r.h),
+      low: parseFloat(r.l),
+      close: parseFloat(r.c),
+      volume: parseFloat(r.v),
     }));
   });
 
-// ---- TOP MOVERS (Binance) ----
+// ---- TOP MOVERS (Crypto.com) ----
 export const getTopCryptoMovers = createServerFn({ method: "GET" }).handler(async () => {
-  const res = await fetch(`${BINANCE}/ticker/24hr`);
-  const all = (await res.json()) as Array<{
-    symbol: string;
-    lastPrice: string;
-    priceChangePercent: string;
-    quoteVolume: string;
-  }>;
-  const usdt = all
-    .filter((t) => t.symbol.endsWith("USDT") && parseFloat(t.quoteVolume) > 50_000_000)
+  const rows = await cdcxTickers();
+  const usdt = rows
+    .filter((t) => t.i.endsWith("_USDT") || t.i.endsWith("_USD"))
     .map((t) => ({
-      symbol: t.symbol,
-      price: parseFloat(t.lastPrice),
-      changePercent: parseFloat(t.priceChangePercent),
-      volume: parseFloat(t.quoteVolume),
-    }));
-  const gainers = [...usdt].sort((a, b) => b.changePercent - a.changePercent).slice(0, 8);
-  const losers = [...usdt].sort((a, b) => a.changePercent - b.changePercent).slice(0, 8);
+      symbol: fromCdcxInstrument(t.i),
+      price: parseFloat(t.a ?? "0"),
+      changePercent: parseFloat(t.c ?? "0") * 100,
+      volume: parseFloat(t.vv ?? "0"),
+    }))
+    .filter((t) => t.price > 0 && !Number.isNaN(t.changePercent) && t.volume > 250_000);
+  const gainers = [...usdt].sort((a, b) => b.changePercent - a.changePercent).slice(0, 10);
+  const losers = [...usdt].sort((a, b) => a.changePercent - b.changePercent).slice(0, 10);
   return { gainers, losers };
+});
+
+// ---- FULL CRYPTO UNIVERSE (Crypto.com) ----
+export const getAllCryptoTokens = createServerFn({ method: "GET" }).handler(async () => {
+  const rows = await cdcxTickers();
+  return rows
+    .filter((t) => t.i.endsWith("_USDT") || t.i.endsWith("_USD"))
+    .map((t) => ({
+      symbol: fromCdcxInstrument(t.i),        // e.g. BTCUSDT
+      instrument: t.i,                        // e.g. BTC_USDT
+      base: t.i.split("_")[0],
+      price: parseFloat(t.a ?? "0"),
+      changePercent: parseFloat(t.c ?? "0") * 100,
+      volume: parseFloat(t.vv ?? "0"),
+      high: parseFloat(t.h ?? "0"),
+      low: parseFloat(t.l ?? "0"),
+    }))
+    .filter((t) => t.price > 0)
+    .sort((a, b) => b.volume - a.volume);
 });
 
 // ---- MARKET PULSE (indices + majors) ----
 const PULSE_STOCKS = ["SPY", "QQQ", "DIA", "IWM", "VIX"];
-const PULSE_CRYPTO = ["BTCUSDT", "ETHUSDT", "SOLUSDT"];
+const PULSE_CRYPTO = ["BTC_USDT", "ETH_USDT", "SOL_USDT"];
 
 export const getMarketPulse = createServerFn({ method: "GET" }).handler(async () => {
   const stocks = await Promise.all(
     PULSE_STOCKS.map(async (s) => {
       try {
         const q = await finnhub("/quote", { symbol: s });
-        return { symbol: s, price: q.c as number, changePercent: q.dp as number, kind: "stock" as const };
+        return { symbol: s, price: (q.c ?? 0) as number, changePercent: (q.dp ?? 0) as number, kind: "stock" as const };
       } catch {
         return null;
       }
@@ -153,9 +243,10 @@ export const getMarketPulse = createServerFn({ method: "GET" }).handler(async ()
   const crypto = await Promise.all(
     PULSE_CRYPTO.map(async (s) => {
       try {
-        const r = await fetch(`${BINANCE}/ticker/24hr?symbol=${s}`);
-        const t = await r.json();
-        return { symbol: s, price: parseFloat(t.lastPrice), changePercent: parseFloat(t.priceChangePercent), kind: "crypto" as const };
+        const rows = await cdcxTickers(s);
+        const t = rows[0];
+        if (!t) return null;
+        return { symbol: fromCdcxInstrument(s), price: parseFloat(t.a ?? "0"), changePercent: parseFloat(t.c ?? "0") * 100, kind: "crypto" as const };
       } catch {
         return null;
       }
@@ -165,18 +256,58 @@ export const getMarketPulse = createServerFn({ method: "GET" }).handler(async ()
 });
 
 // ---- TRENDING STOCKS (curated universe scan via Finnhub quotes) ----
-const STOCK_UNIVERSE = [
+export const STOCK_UNIVERSE = [
   "AAPL","MSFT","NVDA","TSLA","AMZN","GOOGL","META","AMD","NFLX","AVGO",
   "PLTR","COIN","SMCI","MSTR","ORCL","CRM","INTC","MU","QCOM","BA",
   "JPM","BAC","XOM","CVX","UBER","SHOP","SNOW","ARM","DELL","MARA",
+  "GOOG","BABA","DIS","V","MA","PYPL","SQ","ROKU","ABNB","LYFT",
+  "PEP","KO","WMT","TGT","COST","HD","LOW","NKE","MCD","SBUX",
+  "F","GM","RIVN","LCID","GE","CAT","DE","HON","BLK","GS",
 ];
+
+// Names for the universe (for search / listing)
+const STOCK_NAMES: Record<string, string> = {
+  AAPL: "Apple", MSFT: "Microsoft", NVDA: "NVIDIA", TSLA: "Tesla", AMZN: "Amazon",
+  GOOGL: "Alphabet A", GOOG: "Alphabet C", META: "Meta Platforms", AMD: "AMD", NFLX: "Netflix",
+  AVGO: "Broadcom", PLTR: "Palantir", COIN: "Coinbase", SMCI: "Super Micro", MSTR: "MicroStrategy",
+  ORCL: "Oracle", CRM: "Salesforce", INTC: "Intel", MU: "Micron", QCOM: "Qualcomm",
+  BA: "Boeing", JPM: "JPMorgan", BAC: "Bank of America", XOM: "Exxon", CVX: "Chevron",
+  UBER: "Uber", SHOP: "Shopify", SNOW: "Snowflake", ARM: "Arm Holdings", DELL: "Dell",
+  MARA: "Marathon Digital", BABA: "Alibaba", DIS: "Disney", V: "Visa", MA: "Mastercard",
+  PYPL: "PayPal", SQ: "Block", ROKU: "Roku", ABNB: "Airbnb", LYFT: "Lyft",
+  PEP: "PepsiCo", KO: "Coca-Cola", WMT: "Walmart", TGT: "Target", COST: "Costco",
+  HD: "Home Depot", LOW: "Lowe's", NKE: "Nike", MCD: "McDonald's", SBUX: "Starbucks",
+  F: "Ford", GM: "General Motors", RIVN: "Rivian", LCID: "Lucid", GE: "GE Aerospace",
+  CAT: "Caterpillar", DE: "Deere", HON: "Honeywell", BLK: "BlackRock", GS: "Goldman Sachs",
+};
+
+export const getAllStocks = createServerFn({ method: "GET" }).handler(async () => {
+  const quotes = await Promise.all(
+    STOCK_UNIVERSE.map(async (s) => {
+      try {
+        const q = await finnhub("/quote", { symbol: s });
+        return {
+          symbol: s,
+          name: STOCK_NAMES[s] ?? s,
+          price: (q.c ?? 0) as number,
+          changePercent: (q.dp ?? 0) as number,
+          high: (q.h ?? 0) as number,
+          low: (q.l ?? 0) as number,
+        };
+      } catch {
+        return { symbol: s, name: STOCK_NAMES[s] ?? s, price: 0, changePercent: 0, high: 0, low: 0 };
+      }
+    })
+  );
+  return quotes;
+});
 
 export const getTrendingStocks = createServerFn({ method: "GET" }).handler(async () => {
   const quotes = await Promise.all(
     STOCK_UNIVERSE.map(async (s) => {
       try {
         const q = await finnhub("/quote", { symbol: s });
-        return { symbol: s, price: q.c as number, changePercent: q.dp as number, high: q.h as number, low: q.l as number };
+        return { symbol: s, price: (q.c ?? 0) as number, changePercent: (q.dp ?? 0) as number, high: (q.h ?? 0) as number, low: (q.l ?? 0) as number };
       } catch {
         return null;
       }
@@ -195,11 +326,11 @@ export const aiMarketScan = createServerFn({ method: "POST" }).handler(async () 
 
   const [cryptoMovers, stockMovers, pulse] = await Promise.all([
     (async () => {
-      const res = await fetch(`${BINANCE}/ticker/24hr`);
-      const all = (await res.json()) as Array<{ symbol: string; lastPrice: string; priceChangePercent: string; quoteVolume: string }>;
-      const usdt = all
-        .filter((t) => t.symbol.endsWith("USDT") && parseFloat(t.quoteVolume) > 50_000_000)
-        .map((t) => ({ symbol: t.symbol, price: parseFloat(t.lastPrice), changePercent: parseFloat(t.priceChangePercent), volume: parseFloat(t.quoteVolume) }));
+      const rows = await cdcxTickers();
+      const usdt = rows
+        .filter((t) => t.i.endsWith("_USDT") || t.i.endsWith("_USD"))
+        .map((t) => ({ symbol: fromCdcxInstrument(t.i), price: parseFloat(t.a ?? "0"), changePercent: parseFloat(t.c ?? "0") * 100, volume: parseFloat(t.vv ?? "0") }))
+        .filter((t) => t.volume > 250_000 && !Number.isNaN(t.changePercent));
       return {
         gainers: [...usdt].sort((a, b) => b.changePercent - a.changePercent).slice(0, 8),
         losers: [...usdt].sort((a, b) => a.changePercent - b.changePercent).slice(0, 8),
@@ -210,7 +341,7 @@ export const aiMarketScan = createServerFn({ method: "POST" }).handler(async () 
         STOCK_UNIVERSE.map(async (s) => {
           try {
             const q = await finnhub("/quote", { symbol: s });
-            return { symbol: s, price: q.c as number, changePercent: q.dp as number };
+            return { symbol: s, price: (q.c ?? 0) as number, changePercent: (q.dp ?? 0) as number };
           } catch { return null; }
         })
       );
@@ -222,10 +353,11 @@ export const aiMarketScan = createServerFn({ method: "POST" }).handler(async () 
     })(),
     (async () => {
       const spy = await finnhub("/quote", { symbol: "SPY" }).catch(() => null);
-      const btc = await fetch(`${BINANCE}/ticker/24hr?symbol=BTCUSDT`).then((r) => r.json()).catch(() => null);
+      const btcRows = await cdcxTickers("BTC_USDT").catch(() => [] as CdcxTicker[]);
+      const btc = btcRows[0];
       return {
         spy: spy ? { price: spy.c, changePercent: spy.dp } : null,
-        btc: btc ? { price: parseFloat(btc.lastPrice), changePercent: parseFloat(btc.priceChangePercent) } : null,
+        btc: btc ? { price: parseFloat(btc.a ?? "0"), changePercent: parseFloat(btc.c ?? "0") * 100 } : null,
       };
     })(),
   ]);
