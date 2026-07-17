@@ -358,9 +358,11 @@ export const getTrendingStocks = createServerFn({ method: "GET" }).handler(async
 export const aiMarketScan = createServerFn({ method: "POST" })
   .inputValidator((d: { scope?: "cross" | "stocks" | "crypto" | "watchlist"; watchlist?: string[] } | undefined) => d ?? {})
   .handler(async ({ data }) => {
+  assertAiBudget("scan");
   const scope = data.scope ?? "cross";
   const key = process.env.LOVABLE_API_KEY;
   if (!key) throw new Error("Missing LOVABLE_API_KEY");
+
 
   const wantCrypto = scope === "cross" || scope === "crypto";
   const wantStocks = scope === "cross" || scope === "stocks";
