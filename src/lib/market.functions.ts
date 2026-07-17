@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { generateText } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { assertAiBudget, clampPrompt } from "./ai-rate-limit.server";
+
 
 
 const FINNHUB = "https://finnhub.io/api/v1";
@@ -356,9 +358,11 @@ export const getTrendingStocks = createServerFn({ method: "GET" }).handler(async
 export const aiMarketScan = createServerFn({ method: "POST" })
   .inputValidator((d: { scope?: "cross" | "stocks" | "crypto" | "watchlist"; watchlist?: string[] } | undefined) => d ?? {})
   .handler(async ({ data }) => {
+  assertAiBudget("scan");
   const scope = data.scope ?? "cross";
   const key = process.env.LOVABLE_API_KEY;
   if (!key) throw new Error("Missing LOVABLE_API_KEY");
+
 
   const wantCrypto = scope === "cross" || scope === "crypto";
   const wantStocks = scope === "cross" || scope === "stocks";
@@ -462,8 +466,11 @@ type AssetSummary = {
 export const aiAnalyze = createServerFn({ method: "POST" })
   .inputValidator((d: { assets: AssetSummary[]; candles?: Candle[]; symbol?: string; question?: string }) => d)
   .handler(async ({ data }) => {
+    assertAiBudget("analyze");
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("Missing LOVABLE_API_KEY");
+    const question = data.question ? clampPrompt(data.question, 500) : undefined;
+
 
     // Compute simple technicals for the focus symbol
     let techBlock = "";
@@ -502,7 +509,7 @@ Watchlist snapshot (24h):
 ${assetList}
 ${techBlock}
 
-${data.question ? `User question: ${data.question}\n\nAnswer directly and specifically, citing prices, %, and structural levels where relevant.` : `Deliver a full brief for **${data.symbol}** and the watchlist:
+${question ? `User question: ${question}\n\nAnswer directly and specifically, citing prices, %, and structural levels where relevant.` : `Deliver a full brief for **${data.symbol}** and the watchlist:
 
 ## 🧭 Regime Read
 One paragraph: risk-on / risk-off / rotation, and what it means right now.

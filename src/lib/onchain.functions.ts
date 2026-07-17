@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { generateText } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { assertAiBudget } from "./ai-rate-limit.server";
+
 
 // Free, no-key onchain data:
 //   DexScreener   → search, token→pairs, trending boosts, new profiles, txn/liquidity/volume
@@ -216,7 +218,9 @@ export const getOnchainTrades = createServerFn({ method: "GET" })
 export const aiOnchainAnalyze = createServerFn({ method: "POST" })
   .inputValidator((d: { token: TokenLite; txns24h?: { buys: number; sells: number }; priceChange?: { h1?: number; h6?: number; h24?: number } }) => d)
   .handler(async ({ data }) => {
+    assertAiBudget("onchain");
     const t = data.token;
+
     // ---- Deterministic risk heuristics (0 safest → 100 riskiest) ----
     let risk = 0;
     const reasons: string[] = [];
