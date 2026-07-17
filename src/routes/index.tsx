@@ -73,6 +73,7 @@ function Dashboard() {
   const [alerts, setAlerts] = useLocal<Alert[]>("ab.alerts", []);
   const [compareSyms, setCompareSyms] = useLocal<Watch[]>("ab.compare", []);
   const [compareOn, setCompareOn] = useState(false);
+  const [installOpen, setInstallOpen] = useState(false);
 
   // Fetch quotes for watchlist + compare (dedupe)
   const tracked = useMemo(() => {
