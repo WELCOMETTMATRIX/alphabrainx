@@ -534,6 +534,13 @@ function SymbolHeader({ selected, quote, compareOn, setCompareOn, compareCount, 
               className={`ml-auto sm:ml-0 text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1 transition ${compareOn ? "bg-primary/25 text-primary border border-primary/40" : "glass-pill hover:bg-white/10"}`}>
               <GitCompareArrows className="h-3 w-3" /> Compare {compareCount ? `· ${compareCount}` : ""}
             </button>
+            {onExpand && (
+              <button onClick={onExpand}
+                className="text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1 glass-pill hover:bg-white/10 transition"
+                title="Open detail">
+                <ExternalLink className="h-3 w-3" /> Detail
+              </button>
+            )}
           </div>
           <div className="text-2xl sm:text-4xl font-black tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }}>
             {clean(selected.symbol)}
