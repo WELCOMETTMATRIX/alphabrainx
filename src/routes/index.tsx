@@ -6,6 +6,8 @@ import { Activity, Brain, Flame, Loader2, Plus, Search, Sparkles, TrendingDown, 
 import {
   aiAnalyze,
   aiMarketScan,
+  getAllCryptoTokens,
+  getAllStocks,
   getCryptoCandles,
   getCryptoQuote,
   getMarketPulse,
@@ -43,6 +45,7 @@ function Dashboard() {
   const [selected, setSelected] = useState<Watch>(DEFAULT_WATCH[0]);
   const [aiText, setAiText] = useState<string>("");
   const [question, setQuestion] = useState("");
+  const [tab, setTab] = useState<"watchlist" | "stocks" | "crypto">("watchlist");
 
   const quotes = useQueries({
     queries: watch.map((w) => ({
@@ -94,30 +97,24 @@ function Dashboard() {
   const addSymbol = (w: Watch) => setWatch((prev) => (prev.find((x) => x.symbol === w.symbol) ? prev : [...prev, w]));
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-[#050506] text-slate-300 flex flex-col">
       <TickerTape stocks={stockMoversQuery.data} crypto={cryptoMoversQuery.data} />
       <Header />
       <PulseBar pulse={pulseQuery.data} />
 
-      <div className="mx-auto max-w-[1500px] px-4 pb-10 pt-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <aside className="lg:col-span-3 space-y-4">
-          <Watchlist watch={watch} setWatch={setWatch} selected={selected} setSelected={setSelected} quotes={assetsSummary} />
-          <MoversCard
-            title="Crypto Movers"
-            gainers={cryptoMoversQuery.data?.gainers ?? []}
-            losers={cryptoMoversQuery.data?.losers ?? []}
-            onPick={(sym) => { addSymbol({ symbol: sym, kind: "crypto" }); setSelected({ symbol: sym, kind: "crypto" }); }}
-            stripUsdt
-          />
-          <MoversCard
-            title="Stock Movers"
-            gainers={stockMoversQuery.data?.gainers ?? []}
-            losers={stockMoversQuery.data?.losers ?? []}
-            onPick={(sym) => { addSymbol({ symbol: sym, kind: "stock" }); setSelected({ symbol: sym, kind: "stock" }); }}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-white/5 border-t border-white/5 min-h-[calc(100vh-140px)]">
+        {/* LEFT: Navigator */}
+        <aside className="lg:col-span-3 flex flex-col bg-[#08080a] min-h-[600px]">
+          <NavigatorPanel
+            tab={tab} setTab={setTab}
+            watch={watch} setWatch={setWatch}
+            selected={selected} setSelected={setSelected}
+            watchQuotes={assetsSummary}
           />
         </aside>
 
-        <main className="lg:col-span-6 space-y-4">
+        {/* CENTER: Chart + Scanner */}
+        <main className="lg:col-span-6 flex flex-col bg-[#05060a]">
           <SymbolHeader selected={selected} quote={assetsSummary.find((a) => a.symbol === selected.symbol)} />
           <ChartCard data={candlesQuery.data ?? []} loading={candlesQuery.isLoading} symbol={selected.symbol} />
           <ScanPanel
@@ -129,7 +126,8 @@ function Dashboard() {
           />
         </main>
 
-        <aside className="lg:col-span-3 space-y-4">
+        {/* RIGHT: AI + Movers */}
+        <aside className="lg:col-span-3 flex flex-col bg-[#08080a]">
           <AIPanel
             text={aiText}
             loading={aiMut.isPending}
@@ -140,12 +138,26 @@ function Dashboard() {
             onAsk={() => aiMut.mutate(question)}
             symbol={selected.symbol}
           />
+          <div className="border-t border-white/5 p-3 grid grid-cols-1 gap-3">
+            <DailyMovers
+              title="Crypto Movers · Crypto.com"
+              gainers={cryptoMoversQuery.data?.gainers ?? []}
+              losers={cryptoMoversQuery.data?.losers ?? []}
+              onPick={(sym) => { addSymbol({ symbol: sym, kind: "crypto" }); setSelected({ symbol: sym, kind: "crypto" }); }}
+              stripUsdt
+            />
+            <DailyMovers
+              title="Stock Movers"
+              gainers={stockMoversQuery.data?.gainers ?? []}
+              losers={stockMoversQuery.data?.losers ?? []}
+              onPick={(sym) => { addSymbol({ symbol: sym, kind: "stock" }); setSelected({ symbol: sym, kind: "stock" }); }}
+            />
+          </div>
         </aside>
       </div>
 
-      <footer className="text-center text-xs text-muted-foreground pb-8">
-        <span className="font-mono">Alpha Brain v2 · </span>
-        Finnhub · Binance · Lovable AI · Not financial advice
+      <footer className="text-center text-[10px] text-slate-600 py-3 border-t border-white/5 font-mono uppercase tracking-widest">
+        Alpha Brain Pro · Finnhub · Crypto.com Exchange · Lovable AI · Not financial advice
       </footer>
     </div>
   );
@@ -162,18 +174,18 @@ function TickerTape({ stocks, crypto }: {
       (it) => it && typeof it.changePercent === "number" && !Number.isNaN(it.changePercent) && typeof it.price === "number"
     );
   }, [stocks, crypto]);
-  if (!items.length) return <div className="h-8 border-b border-border/40" />;
+  if (!items.length) return <div className="h-8 border-b border-white/5 bg-black/40" />;
   const doubled = [...items, ...items];
   return (
-    <div className="border-b border-border/40 bg-background/40 backdrop-blur overflow-hidden">
-      <div className="flex whitespace-nowrap animate-ticker py-1.5 text-xs font-mono">
+    <div className="border-b border-white/5 bg-black/60 overflow-hidden">
+      <div className="flex whitespace-nowrap animate-ticker py-1.5 text-[11px] font-mono">
         {doubled.map((it, i) => {
           const up = it.changePercent >= 0;
           return (
             <span key={i} className="mx-4 inline-flex items-center gap-2">
-              <span className="text-foreground/80">{it.symbol}</span>
-              <span className="text-muted-foreground">${fmt(it.price)}</span>
-              <span className={up ? "text-[color:var(--bull)]" : "text-[color:var(--bear)]"}>
+              <span className="text-slate-500">{it.symbol}</span>
+              <span className="text-slate-300">${fmt(it.price)}</span>
+              <span className={up ? "text-emerald-400" : "text-rose-400"}>
                 {up ? "▲" : "▼"} {Math.abs(it.changePercent).toFixed(2)}%
               </span>
             </span>
@@ -186,22 +198,22 @@ function TickerTape({ stocks, crypto }: {
 
 function Header() {
   return (
-    <header className="border-b border-border/40 backdrop-blur-xl bg-background/50 sticky top-0 z-20">
-      <div className="mx-auto max-w-[1500px] px-4 py-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 sm:flex sm:justify-between">
+    <header className="border-b border-white/5 bg-[#08080a] sticky top-0 z-20">
+      <div className="px-4 py-3 flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative shrink-0">
-            <div className="h-10 w-10 rounded-xl grid place-items-center relative overflow-hidden" style={{ background: "var(--grad-neon)" }}>
-              <Brain className="h-5 w-5 text-background relative z-10" strokeWidth={2.5} />
+            <div className="h-10 w-10 rounded-xl grid place-items-center relative overflow-hidden bg-gradient-to-br from-indigo-500 via-cyan-400 to-emerald-400">
+              <Brain className="h-5 w-5 text-black relative z-10" strokeWidth={2.5} />
               <div className="absolute inset-0 animate-scan" style={{ background: "linear-gradient(180deg, transparent, oklch(1 0 0 / 0.4), transparent)", height: "50%" }} />
             </div>
-            <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-[color:var(--bull)] animate-pulse-ring" />
+            <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-emerald-400 animate-pulse-ring" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-black tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-              <span className="text-gradient">ALPHA BRAIN</span>
+            <h1 className="text-lg sm:text-xl font-black tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }}>
+              ALPHA <span className="bg-gradient-to-r from-indigo-400 via-cyan-300 to-emerald-300 bg-clip-text text-transparent">BRAIN</span>
             </h1>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground -mt-0.5 font-mono">
-              Neural Market Intelligence · 2026
+            <p className="text-[10px] uppercase tracking-[0.25em] text-slate-500 -mt-0.5 font-mono">
+              Pro Terminal · 2026
             </p>
           </div>
         </div>
