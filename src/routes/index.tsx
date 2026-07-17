@@ -79,6 +79,11 @@ function Dashboard() {
   const [panels, setPanels] = useLocal<{ chart: boolean; scan: boolean; ai: boolean }>("ab.panels", { chart: true, scan: true, ai: true });
   const [chartPop, setChartPop] = useState(false);
   const [aiPop, setAiPop] = useState(false);
+  const [theme, setTheme] = useLocal<"solaris" | "nebula">("ab.theme", "solaris");
+  useEffect(() => {
+    if (typeof document !== "undefined") document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
 
 
   // Fetch quotes for watchlist + compare (dedupe)
@@ -192,7 +197,7 @@ function Dashboard() {
     <div className="min-h-screen text-slate-100 flex flex-col relative">
       <ToastHost />
       <TickerTape stocks={stockMoversQuery.data} crypto={cryptoMoversQuery.data} />
-      <Header alerts={activeAlerts} onOpenAlerts={() => setMobileTab("alerts")} onOpenInstall={() => setInstallOpen(true)} />
+      <Header alerts={activeAlerts} onOpenAlerts={() => setMobileTab("alerts")} onOpenInstall={() => setInstallOpen(true)} theme={theme} setTheme={setTheme} />
       <PulseBar pulse={pulseQuery.data} />
 
       {/* Desktop layout */}
@@ -378,7 +383,7 @@ function ToastHost() {
 // ============================================================================
 // HEADER
 // ============================================================================
-function Header({ alerts, onOpenAlerts, onOpenInstall }: { alerts: number; onOpenAlerts: () => void; onOpenInstall: () => void }) {
+function Header({ alerts, onOpenAlerts, onOpenInstall, theme, setTheme }: { alerts: number; onOpenAlerts: () => void; onOpenInstall: () => void; theme: "solaris" | "nebula"; setTheme: (v: "solaris" | "nebula") => void }) {
   return (
     <header className="sticky top-0 z-20 px-3 pt-3 pt-safe">
       <div className="glass-strong rounded-2xl grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 sm:flex sm:justify-between">
@@ -391,14 +396,28 @@ function Header({ alerts, onOpenAlerts, onOpenInstall }: { alerts: number; onOpe
             <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-emerald-400 animate-pulse-ring" />
           </div>
           <div className="min-w-0">
-            <h1 className="truncate text-base sm:text-xl font-black tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }}>
-              ALPHA <span className="bg-gradient-to-r from-indigo-300 via-cyan-200 to-emerald-300 bg-clip-text text-transparent">BRAIN</span>
+            <h1 className="truncate text-base sm:text-xl font-black tracking-tight" style={{ fontFamily: "var(--font-display)", color: "var(--foreground)" }}>
+              ALPHA <span style={{ background: "var(--grad-neon)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>BRAIN</span>
             </h1>
-            <p className="text-[9px] uppercase tracking-[0.25em] text-slate-400 -mt-0.5 font-mono">Crystal Terminal · 2026</p>
+            <p className="text-[9px] uppercase tracking-[0.25em] -mt-0.5 font-mono" style={{ color: "var(--muted-foreground)" }}>
+              {theme === "solaris" ? "Solaris Terminal · v3" : "Nebula Depth · v3"}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <div className="hidden sm:block"><SearchBox /></div>
+          <div className="glass-pill hidden md:flex items-center p-0.5 text-[10px] font-mono uppercase tracking-wider">
+            <button onClick={() => setTheme("solaris")}
+              className={`tap px-2.5 py-1 rounded-full transition ${theme === "solaris" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              style={theme === "solaris" ? { background: "var(--grad-neon)" } : undefined}>Solaris</button>
+            <button onClick={() => setTheme("nebula")}
+              className={`tap px-2.5 py-1 rounded-full transition ${theme === "nebula" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              style={theme === "nebula" ? { background: "var(--grad-neon)" } : undefined}>Nebula</button>
+          </div>
+          <button onClick={() => setTheme(theme === "solaris" ? "nebula" : "solaris")} title="Switch template"
+            className="md:hidden tap h-10 w-10 grid place-items-center rounded-xl glass hover:bg-white/10">
+            <Sparkles className="h-4 w-4" />
+          </button>
           <button onClick={onOpenInstall} title="Install app"
             className="tap h-10 px-3 sm:px-3 grid place-items-center rounded-xl glass hover:bg-white/10 flex items-center gap-1.5">
             <Download className="h-4 w-4" />
