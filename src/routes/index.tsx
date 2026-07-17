@@ -1411,3 +1411,239 @@ function Stat({ label, value, sub, highlight }: { label: string; value: string; 
     </div>
   );
 }
+
+// ============================================================================
+// SEGMENTED TABS — sliding indicator, keyboard + touch friendly
+// ============================================================================
+function SegmentedTabs({ value, onChange, items }: {
+  value: string;
+  onChange: (v: string) => void;
+  items: { value: string; label: string; icon?: React.ReactNode }[];
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [thumb, setThumb] = useState<{ left: number; width: number } | null>(null);
+  useEffect(() => {
+    const wrap = wrapRef.current; if (!wrap) return;
+    const active = wrap.querySelector<HTMLButtonElement>(`[data-active="true"]`);
+    if (!active) return;
+    const wrapRect = wrap.getBoundingClientRect();
+    const r = active.getBoundingClientRect();
+    setThumb({ left: r.left - wrapRect.left, width: r.width });
+  }, [value, items.length]);
+  return (
+    <div ref={wrapRef} className="seg-track" role="tablist">
+      {thumb && <span className="seg-thumb" style={{ left: thumb.left, width: thumb.width }} />}
+      {items.map((it) => (
+        <button key={it.value} role="tab" data-active={value === it.value}
+          aria-selected={value === it.value}
+          onClick={() => onChange(it.value)} className="seg-btn tap">
+          {it.icon}
+          <span className="truncate">{it.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================================
+// DRAGGABLE MODAL — moveable on desktop, bottom sheet on mobile, minimizable
+// ============================================================================
+function DraggableModal({ onClose, title, width = 720, children }: {
+  onClose: () => void; title: string; width?: number; children: React.ReactNode;
+}) {
+  const [isMobile, setIsMobile] = useState<boolean>(() => typeof window !== "undefined" && window.innerWidth < 768);
+  useEffect(() => {
+    const on = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", on);
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", esc);
+    return () => { window.removeEventListener("resize", on); window.removeEventListener("keydown", esc); };
+  }, [onClose]);
+
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [minimized, setMinimized] = useState(false);
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
+
+  useEffect(() => {
+    if (isMobile || pos) return;
+    const w = Math.min(width, window.innerWidth - 40);
+    const h = Math.min(window.innerHeight * 0.86, 780);
+    setPos({ x: Math.max(20, (window.innerWidth - w) / 2), y: Math.max(20, (window.innerHeight - h) / 2) });
+  }, [isMobile, width, pos]);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (isMobile || !pos) return;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const x = Math.max(-40, Math.min(window.innerWidth - 80, e.clientX - dragRef.current.dx));
+    const y = Math.max(0, Math.min(window.innerHeight - 60, e.clientY - dragRef.current.dy));
+    setPos({ x, y });
+  };
+  const onPointerUp = () => { dragRef.current = null; };
+
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm pb-safe" onClick={onClose}>
+        <div className="drag-modal w-full max-w-lg max-h-[92vh] flex flex-col rounded-t-3xl rounded-b-none" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-white/10">
+            <div className="mx-auto h-1 w-10 rounded-full bg-white/25" />
+            <button onClick={onClose} className="absolute right-3 top-3 tap p-1.5 rounded-lg text-slate-300 hover:bg-white/10"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="px-4 py-1 text-[11px] font-mono text-slate-400 border-b border-white/5 truncate">{title}</div>
+          <div className="flex-1 overflow-y-auto scroll-thin overscroll-contain">{children}</div>
+        </div>
+      </div>
+    );
+  }
+
+  const w = Math.min(width, window.innerWidth - 40);
+  const h = minimized ? 56 : Math.min(window.innerHeight * 0.86, 780);
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="drag-modal flex flex-col overflow-hidden"
+        style={{ left: pos?.x ?? 0, top: pos?.y ?? 0, width: w, height: h }}>
+        <div className="drag-handle flex items-center gap-2 px-3 h-11 border-b border-white/10 bg-white/5"
+          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+          <span className="flex gap-1.5 shrink-0">
+            <span className="h-2.5 w-2.5 rounded-full bg-rose-400/80" />
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+          </span>
+          <span className="text-[11px] font-mono text-slate-300 truncate flex-1 text-center px-2">{title}</span>
+          <button onClick={() => setMinimized((m) => !m)} title={minimized ? "Restore" : "Minimize"}
+            className="tap p-1.5 rounded-lg text-slate-300 hover:bg-white/10"><Minus className="h-3.5 w-3.5" /></button>
+          <button onClick={onClose} title="Close"
+            className="tap p-1.5 rounded-lg text-slate-300 hover:bg-rose-500/25 hover:text-rose-200"><X className="h-4 w-4" /></button>
+        </div>
+        {!minimized && <div className="flex-1 overflow-y-auto scroll-thin">{children}</div>}
+      </div>
+    </>
+  );
+}
+
+// ============================================================================
+// INSTALL MODAL — PWA install prompt + per-OS instructions
+// ============================================================================
+type BIPEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
+function InstallModal({ onClose }: { onClose: () => void }) {
+  const [ua, setUA] = useState<{ ios: boolean; android: boolean; windows: boolean; mac: boolean; standalone: boolean }>(
+    { ios: false, android: false, windows: false, mac: false, standalone: false });
+  const [deferred, setDeferred] = useState<BIPEvent | null>(null);
+  const [installed, setInstalled] = useState(false);
+  const [os, setOs] = useState<"ios" | "android" | "windows" | "mac">("android");
+
+  useEffect(() => {
+    const u = navigator.userAgent;
+    const ios = /iPad|iPhone|iPod/.test(u) && !(window as any).MSStream;
+    const android = /Android/i.test(u);
+    const windows = /Windows/i.test(u);
+    const mac = /Macintosh/i.test(u) && !ios;
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true;
+    setUA({ ios, android, windows, mac, standalone });
+    setOs(ios ? "ios" : android ? "android" : windows ? "windows" : mac ? "mac" : "android");
+    const on = (e: Event) => { e.preventDefault(); setDeferred(e as BIPEvent); };
+    const done = () => setInstalled(true);
+    window.addEventListener("beforeinstallprompt", on as EventListener);
+    window.addEventListener("appinstalled", done);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", on as EventListener);
+      window.removeEventListener("appinstalled", done);
+    };
+  }, []);
+
+  const install = async () => {
+    if (!deferred) return;
+    await deferred.prompt();
+    const res = await deferred.userChoice;
+    if (res.outcome === "accepted") setInstalled(true);
+    setDeferred(null);
+  };
+
+  const items = [
+    { value: "ios", label: "iPhone" },
+    { value: "android", label: "Android" },
+    { value: "windows", label: "Windows" },
+    { value: "mac", label: "macOS" },
+  ];
+
+  return (
+    <DraggableModal onClose={onClose} title="Install Alpha Brain" width={640}>
+      <div className="p-4 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl grid place-items-center bg-gradient-to-br from-indigo-500 via-cyan-400 to-emerald-400">
+            <Brain className="h-6 w-6 text-black" strokeWidth={2.5} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-white font-bold text-sm">Add Alpha Brain to your device</div>
+            <div className="text-[11px] text-slate-400">Fullscreen, offline-ready shell, home-screen icon. Works on iOS, Android, Windows &amp; macOS.</div>
+          </div>
+        </div>
+
+        {ua.standalone ? (
+          <div className="glass rounded-xl p-3 text-xs text-emerald-300">✅ Already installed — you're running the app.</div>
+        ) : installed ? (
+          <div className="glass rounded-xl p-3 text-xs text-emerald-300">✅ Installed. Look for the Alpha Brain icon on your device.</div>
+        ) : deferred ? (
+          <button onClick={install}
+            className="tap w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"
+            style={{ background: "var(--grad-neon)", color: "var(--primary-foreground)" }}>
+            <Download className="h-4 w-4" /> Install now
+          </button>
+        ) : null}
+
+        <SegmentedTabs value={os} onChange={(v) => setOs(v as typeof os)} items={items} />
+
+        <div className="glass rounded-xl p-3 text-[12px] leading-relaxed text-slate-200 space-y-2">
+          {os === "ios" && (
+            <>
+              <div className="text-white font-semibold text-xs uppercase tracking-wider">iPhone / iPad — Safari</div>
+              <ol className="list-decimal ml-5 space-y-1 text-slate-300">
+                <li>Tap the <b>Share</b> button (square with arrow up) in Safari.</li>
+                <li>Scroll and tap <b>Add to Home Screen</b>.</li>
+                <li>Tap <b>Add</b> — Alpha Brain now lives on your home screen like a native app.</li>
+              </ol>
+            </>
+          )}
+          {os === "android" && (
+            <>
+              <div className="text-white font-semibold text-xs uppercase tracking-wider">Android — Chrome / Edge</div>
+              <ol className="list-decimal ml-5 space-y-1 text-slate-300">
+                <li>Tap the <b>⋮</b> menu in the browser toolbar.</li>
+                <li>Tap <b>Install app</b> or <b>Add to Home screen</b>.</li>
+                <li>Confirm — the app opens fullscreen from your launcher.</li>
+              </ol>
+            </>
+          )}
+          {os === "windows" && (
+            <>
+              <div className="text-white font-semibold text-xs uppercase tracking-wider">Windows 10 / 11 — Chrome / Edge</div>
+              <ol className="list-decimal ml-5 space-y-1 text-slate-300">
+                <li>Click the <b>install icon</b> (⊕ or monitor with down arrow) in the address bar.</li>
+                <li>Or open the browser menu → <b>Apps → Install this site as an app</b>.</li>
+                <li>Alpha Brain gets its own window, taskbar icon, and Start-menu entry.</li>
+              </ol>
+            </>
+          )}
+          {os === "mac" && (
+            <>
+              <div className="text-white font-semibold text-xs uppercase tracking-wider">macOS — Safari 17+ / Chrome</div>
+              <ol className="list-decimal ml-5 space-y-1 text-slate-300">
+                <li>Safari: <b>File → Add to Dock…</b> and confirm.</li>
+                <li>Chrome/Edge: address-bar <b>install</b> icon, or menu → <b>Cast, Save & Share → Install</b>.</li>
+                <li>Launch it from Launchpad or the Dock like any Mac app.</li>
+              </ol>
+            </>
+          )}
+        </div>
+
+        <div className="text-[10px] font-mono text-slate-500">
+          Tip: enable browser <b>Notifications</b> so price alerts fire even when the app is in the background.
+        </div>
+      </div>
+    </DraggableModal>
+  );
+}
