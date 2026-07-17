@@ -513,9 +513,10 @@ function PulseBar({ pulse }: { pulse?: { stocks: Array<{ symbol: string; price: 
 // ============================================================================
 // SYMBOL HEADER + CHART
 // ============================================================================
-function SymbolHeader({ selected, quote, compareOn, setCompareOn, compareCount }: {
+function SymbolHeader({ selected, quote, compareOn, setCompareOn, compareCount, onExpand }: {
   selected: Watch; quote?: { price: number; changePercent: number; high?: number; low?: number };
   compareOn: boolean; setCompareOn: (b: boolean) => void; compareCount: number;
+  onExpand?: () => void;
 }) {
   const up = (quote?.changePercent ?? 0) >= 0;
   return (
