@@ -158,7 +158,9 @@ function TickerTape({ stocks, crypto }: {
   const items = useMemo(() => {
     const s = [...(stocks?.gainers ?? []), ...(stocks?.losers ?? [])];
     const c = [...(crypto?.gainers ?? []), ...(crypto?.losers ?? [])].slice(0, 12);
-    return [...s, ...c.map((x) => ({ ...x, symbol: x.symbol.replace("USDT", "") }))];
+    return [...s, ...c.map((x) => ({ ...x, symbol: x.symbol.replace("USDT", "") }))].filter(
+      (it) => it && typeof it.changePercent === "number" && !Number.isNaN(it.changePercent) && typeof it.price === "number"
+    );
   }, [stocks, crypto]);
   if (!items.length) return <div className="h-8 border-b border-border/40" />;
   const doubled = [...items, ...items];
