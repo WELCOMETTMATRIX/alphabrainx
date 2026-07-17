@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { generateText } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { assertAiBudget } from "./ai-rate-limit.server";
+
 
 // Free, no-key onchain data:
 //   DexScreener   → search, token→pairs, trending boosts, new profiles, txn/liquidity/volume
