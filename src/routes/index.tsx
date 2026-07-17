@@ -6,6 +6,8 @@ import { Activity, Brain, Flame, Loader2, Plus, Search, Sparkles, TrendingDown, 
 import {
   aiAnalyze,
   aiMarketScan,
+  getAllCryptoTokens,
+  getAllStocks,
   getCryptoCandles,
   getCryptoQuote,
   getMarketPulse,
@@ -43,6 +45,7 @@ function Dashboard() {
   const [selected, setSelected] = useState<Watch>(DEFAULT_WATCH[0]);
   const [aiText, setAiText] = useState<string>("");
   const [question, setQuestion] = useState("");
+  const [tab, setTab] = useState<"watchlist" | "stocks" | "crypto">("watchlist");
 
   const quotes = useQueries({
     queries: watch.map((w) => ({
@@ -94,30 +97,24 @@ function Dashboard() {
   const addSymbol = (w: Watch) => setWatch((prev) => (prev.find((x) => x.symbol === w.symbol) ? prev : [...prev, w]));
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-[#050506] text-slate-300 flex flex-col">
       <TickerTape stocks={stockMoversQuery.data} crypto={cryptoMoversQuery.data} />
       <Header />
       <PulseBar pulse={pulseQuery.data} />
 
-      <div className="mx-auto max-w-[1500px] px-4 pb-10 pt-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <aside className="lg:col-span-3 space-y-4">
-          <Watchlist watch={watch} setWatch={setWatch} selected={selected} setSelected={setSelected} quotes={assetsSummary} />
-          <MoversCard
-            title="Crypto Movers"
-            gainers={cryptoMoversQuery.data?.gainers ?? []}
-            losers={cryptoMoversQuery.data?.losers ?? []}
-            onPick={(sym) => { addSymbol({ symbol: sym, kind: "crypto" }); setSelected({ symbol: sym, kind: "crypto" }); }}
-            stripUsdt
-          />
-          <MoversCard
-            title="Stock Movers"
-            gainers={stockMoversQuery.data?.gainers ?? []}
-            losers={stockMoversQuery.data?.losers ?? []}
-            onPick={(sym) => { addSymbol({ symbol: sym, kind: "stock" }); setSelected({ symbol: sym, kind: "stock" }); }}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-white/5 border-t border-white/5 min-h-[calc(100vh-140px)]">
+        {/* LEFT: Navigator */}
+        <aside className="lg:col-span-3 flex flex-col bg-[#08080a] min-h-[600px]">
+          <NavigatorPanel
+            tab={tab} setTab={setTab}
+            watch={watch} setWatch={setWatch}
+            selected={selected} setSelected={setSelected}
+            watchQuotes={assetsSummary}
           />
         </aside>
 
-        <main className="lg:col-span-6 space-y-4">
+        {/* CENTER: Chart + Scanner */}
+        <main className="lg:col-span-6 flex flex-col bg-[#05060a]">
           <SymbolHeader selected={selected} quote={assetsSummary.find((a) => a.symbol === selected.symbol)} />
           <ChartCard data={candlesQuery.data ?? []} loading={candlesQuery.isLoading} symbol={selected.symbol} />
           <ScanPanel
@@ -129,7 +126,8 @@ function Dashboard() {
           />
         </main>
 
-        <aside className="lg:col-span-3 space-y-4">
+        {/* RIGHT: AI + Movers */}
+        <aside className="lg:col-span-3 flex flex-col bg-[#08080a]">
           <AIPanel
             text={aiText}
             loading={aiMut.isPending}
@@ -140,12 +138,26 @@ function Dashboard() {
             onAsk={() => aiMut.mutate(question)}
             symbol={selected.symbol}
           />
+          <div className="border-t border-white/5 p-3 grid grid-cols-1 gap-3">
+            <DailyMovers
+              title="Crypto Movers · Crypto.com"
+              gainers={cryptoMoversQuery.data?.gainers ?? []}
+              losers={cryptoMoversQuery.data?.losers ?? []}
+              onPick={(sym) => { addSymbol({ symbol: sym, kind: "crypto" }); setSelected({ symbol: sym, kind: "crypto" }); }}
+              stripUsdt
+            />
+            <DailyMovers
+              title="Stock Movers"
+              gainers={stockMoversQuery.data?.gainers ?? []}
+              losers={stockMoversQuery.data?.losers ?? []}
+              onPick={(sym) => { addSymbol({ symbol: sym, kind: "stock" }); setSelected({ symbol: sym, kind: "stock" }); }}
+            />
+          </div>
         </aside>
       </div>
 
-      <footer className="text-center text-xs text-muted-foreground pb-8">
-        <span className="font-mono">Alpha Brain v2 · </span>
-        Finnhub · Binance · Lovable AI · Not financial advice
+      <footer className="text-center text-[10px] text-slate-600 py-3 border-t border-white/5 font-mono uppercase tracking-widest">
+        Alpha Brain Pro · Finnhub · Crypto.com Exchange · Lovable AI · Not financial advice
       </footer>
     </div>
   );
@@ -162,18 +174,18 @@ function TickerTape({ stocks, crypto }: {
       (it) => it && typeof it.changePercent === "number" && !Number.isNaN(it.changePercent) && typeof it.price === "number"
     );
   }, [stocks, crypto]);
-  if (!items.length) return <div className="h-8 border-b border-border/40" />;
+  if (!items.length) return <div className="h-8 border-b border-white/5 bg-black/40" />;
   const doubled = [...items, ...items];
   return (
-    <div className="border-b border-border/40 bg-background/40 backdrop-blur overflow-hidden">
-      <div className="flex whitespace-nowrap animate-ticker py-1.5 text-xs font-mono">
+    <div className="border-b border-white/5 bg-black/60 overflow-hidden">
+      <div className="flex whitespace-nowrap animate-ticker py-1.5 text-[11px] font-mono">
         {doubled.map((it, i) => {
           const up = it.changePercent >= 0;
           return (
             <span key={i} className="mx-4 inline-flex items-center gap-2">
-              <span className="text-foreground/80">{it.symbol}</span>
-              <span className="text-muted-foreground">${fmt(it.price)}</span>
-              <span className={up ? "text-[color:var(--bull)]" : "text-[color:var(--bear)]"}>
+              <span className="text-slate-500">{it.symbol}</span>
+              <span className="text-slate-300">${fmt(it.price)}</span>
+              <span className={up ? "text-emerald-400" : "text-rose-400"}>
                 {up ? "▲" : "▼"} {Math.abs(it.changePercent).toFixed(2)}%
               </span>
             </span>
@@ -186,22 +198,22 @@ function TickerTape({ stocks, crypto }: {
 
 function Header() {
   return (
-    <header className="border-b border-border/40 backdrop-blur-xl bg-background/50 sticky top-0 z-20">
-      <div className="mx-auto max-w-[1500px] px-4 py-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 sm:flex sm:justify-between">
+    <header className="border-b border-white/5 bg-[#08080a] sticky top-0 z-20">
+      <div className="px-4 py-3 flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative shrink-0">
-            <div className="h-10 w-10 rounded-xl grid place-items-center relative overflow-hidden" style={{ background: "var(--grad-neon)" }}>
-              <Brain className="h-5 w-5 text-background relative z-10" strokeWidth={2.5} />
+            <div className="h-10 w-10 rounded-xl grid place-items-center relative overflow-hidden bg-gradient-to-br from-indigo-500 via-cyan-400 to-emerald-400">
+              <Brain className="h-5 w-5 text-black relative z-10" strokeWidth={2.5} />
               <div className="absolute inset-0 animate-scan" style={{ background: "linear-gradient(180deg, transparent, oklch(1 0 0 / 0.4), transparent)", height: "50%" }} />
             </div>
-            <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-[color:var(--bull)] animate-pulse-ring" />
+            <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-emerald-400 animate-pulse-ring" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-black tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-              <span className="text-gradient">ALPHA BRAIN</span>
+            <h1 className="text-lg sm:text-xl font-black tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }}>
+              ALPHA <span className="bg-gradient-to-r from-indigo-400 via-cyan-300 to-emerald-300 bg-clip-text text-transparent">BRAIN</span>
             </h1>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground -mt-0.5 font-mono">
-              Neural Market Intelligence · 2026
+            <p className="text-[10px] uppercase tracking-[0.25em] text-slate-500 -mt-0.5 font-mono">
+              Pro Terminal · 2026
             </p>
           </div>
         </div>
@@ -634,6 +646,228 @@ function AIPanel({ text, loading, error, onRun, question, setQuestion, onAsk, sy
           className="rounded-lg bg-secondary text-secondary-foreground text-xs px-3 py-2 font-bold hover:bg-secondary/80 disabled:opacity-50">
           Ask
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Obsidian Pro Navigator: Watchlist / All Stocks / All Crypto (Crypto.com)
+// ============================================================================
+
+function NavigatorPanel({
+  tab, setTab, watch, setWatch, selected, setSelected, watchQuotes,
+}: {
+  tab: "watchlist" | "stocks" | "crypto";
+  setTab: (t: "watchlist" | "stocks" | "crypto") => void;
+  watch: Watch[];
+  setWatch: (fn: (w: Watch[]) => Watch[]) => void;
+  selected: Watch;
+  setSelected: (w: Watch) => void;
+  watchQuotes: Array<{ symbol: string; price: number; changePercent: number }>;
+}) {
+  const [q, setQ] = useState("");
+
+  useEffect(() => {
+    const h = (e: Event) => {
+      const d = (e as CustomEvent).detail as Watch;
+      setWatch((prev) => (prev.find((w) => w.symbol === d.symbol) ? prev : [...prev, d]));
+    };
+    window.addEventListener("add-symbol", h);
+    return () => window.removeEventListener("add-symbol", h);
+  }, [setWatch]);
+
+  const stocksAll = useQuery({
+    queryKey: ["all-stocks"],
+    queryFn: () => getAllStocks(),
+    refetchInterval: 30_000,
+    enabled: tab === "stocks",
+  });
+  const cryptoAll = useQuery({
+    queryKey: ["all-crypto"],
+    queryFn: () => getAllCryptoTokens(),
+    refetchInterval: 15_000,
+    enabled: tab === "crypto",
+  });
+
+  const addAndSelect = (w: Watch) => {
+    setWatch((prev) => (prev.find((x) => x.symbol === w.symbol) ? prev : [...prev, w]));
+    setSelected(w);
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="p-3 border-b border-white/5 space-y-3">
+        <div className="flex bg-black/40 p-1 rounded-md border border-white/5 text-[11px]">
+          {(["watchlist", "stocks", "crypto"] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`flex-1 py-1.5 font-semibold uppercase tracking-wide rounded transition ${
+                tab === k ? "bg-white/10 text-white" : "text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              {k === "watchlist" ? `List · ${watch.length}` : k === "stocks" ? "Stocks" : "Crypto"}
+            </button>
+          ))}
+        </div>
+        <div className="relative">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={tab === "crypto" ? "Search Crypto.com tokens…" : tab === "stocks" ? "Filter stocks…" : "Symbol to add (BTC_USDT / SPY)"}
+            className="w-full bg-black/40 border border-white/5 rounded px-8 py-1.5 text-xs focus:outline-none focus:border-indigo-500/50"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && tab === "watchlist" && q) {
+                const raw = q.toUpperCase();
+                const kind: Kind = raw.includes("_") || raw.endsWith("USDT") || raw.endsWith("USD") ? "crypto" : "stock";
+                addAndSelect({ symbol: raw, kind });
+                setQ("");
+              }
+            }}
+          />
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-slate-600" />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+        {tab === "watchlist" && (
+          <>
+            {watch.map((w) => {
+              const qv = watchQuotes.find((x) => x.symbol === w.symbol);
+              const up = (qv?.changePercent ?? 0) >= 0;
+              const isSel = selected.symbol === w.symbol;
+              return (
+                <button
+                  key={w.symbol}
+                  onClick={() => setSelected(w)}
+                  className={`w-full p-3 flex items-center justify-between hover:bg-white/5 transition text-left ${
+                    isSel ? `border-l-2 ${up ? "border-emerald-500/70 bg-emerald-500/5" : "border-rose-500/70 bg-rose-500/5"}` : "border-l-2 border-transparent"
+                  }`}
+                >
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      {w.symbol.replace("USDT", "")}
+                      <span className={`text-[9px] font-mono uppercase px-1 py-px rounded ${w.kind === "crypto" ? "bg-indigo-500/20 text-indigo-300" : "bg-cyan-500/20 text-cyan-300"}`}>
+                        {w.kind}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 truncate max-w-[160px]">{w.label ?? ""}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-mono text-white">${fmt(qv?.price)}</div>
+                    <div className={`text-[10px] font-mono ${up ? "text-emerald-400" : "text-rose-400"}`}>
+                      {qv ? `${up ? "+" : ""}${qv.changePercent.toFixed(2)}%` : "—"}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </>
+        )}
+
+        {tab === "stocks" && (
+          <UniverseList
+            loading={stocksAll.isLoading}
+            items={(stocksAll.data ?? [])
+              .filter((s) => !q || s.symbol.includes(q.toUpperCase()) || s.name.toLowerCase().includes(q.toLowerCase()))
+              .map((s) => ({ symbol: s.symbol, label: s.name, price: s.price, changePercent: s.changePercent, kind: "stock" as const }))}
+            onPick={addAndSelect}
+            selectedSymbol={selected.symbol}
+          />
+        )}
+
+        {tab === "crypto" && (
+          <UniverseList
+            loading={cryptoAll.isLoading}
+            items={(cryptoAll.data ?? [])
+              .filter((t) => !q || t.base.includes(q.toUpperCase()) || t.symbol.includes(q.toUpperCase()))
+              .slice(0, 300)
+              .map((t) => ({ symbol: t.symbol, label: `${t.base} · Crypto.com`, price: t.price, changePercent: t.changePercent, kind: "crypto" as const }))}
+            onPick={addAndSelect}
+            selectedSymbol={selected.symbol}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UniverseList({
+  loading, items, onPick, selectedSymbol,
+}: {
+  loading: boolean;
+  items: Array<{ symbol: string; label: string; price: number; changePercent: number; kind: Kind }>;
+  onPick: (w: Watch) => void;
+  selectedSymbol: string;
+}) {
+  if (loading && !items.length) {
+    return <div className="p-4 text-[11px] text-slate-500 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Loading universe…</div>;
+  }
+  if (!items.length) return <div className="p-4 text-[11px] text-slate-500">No matches.</div>;
+  return (
+    <>
+      {items.map((it) => {
+        const up = it.changePercent >= 0;
+        const isSel = it.symbol === selectedSymbol;
+        return (
+          <button
+            key={it.symbol}
+            onClick={() => onPick({ symbol: it.symbol, kind: it.kind, label: it.label })}
+            className={`w-full p-2.5 flex items-center justify-between hover:bg-white/5 transition text-left ${isSel ? "bg-white/5" : ""}`}
+          >
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                {it.symbol.replace("USDT", "").replace("USD", "")}
+                <span className={`text-[8px] font-mono uppercase px-1 rounded ${it.kind === "crypto" ? "bg-indigo-500/20 text-indigo-300" : "bg-cyan-500/20 text-cyan-300"}`}>
+                  {it.kind}
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-500 truncate max-w-[160px]">{it.label}</div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="text-[11px] font-mono text-slate-200">${fmt(it.price)}</div>
+              <div className={`text-[10px] font-mono ${up ? "text-emerald-400" : "text-rose-400"}`}>
+                {isFinite(it.changePercent) ? `${up ? "+" : ""}${it.changePercent.toFixed(2)}%` : "—"}
+              </div>
+            </div>
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
+function DailyMovers({
+  title, gainers, losers, onPick, stripUsdt,
+}: {
+  title: string;
+  gainers: Array<{ symbol: string; price?: number; changePercent: number }>;
+  losers: Array<{ symbol: string; price?: number; changePercent: number }>;
+  onPick: (sym: string) => void;
+  stripUsdt?: boolean;
+}) {
+  const clean = (s: string) => (stripUsdt ? s.replace("USDT", "").replace("USD", "") : s);
+  return (
+    <div>
+      <div className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-1.5">
+        <Flame className="h-3 w-3 text-indigo-400" /> {title}
+      </div>
+      <div className="space-y-1">
+        {gainers.slice(0, 4).map((g) => (
+          <button key={"g" + g.symbol} onClick={() => onPick(g.symbol)} className="w-full flex items-center justify-between text-[11px] hover:bg-white/5 px-1 py-1 rounded">
+            <span className="bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-bold font-mono text-[10px]">+{g.changePercent.toFixed(1)}%</span>
+            <span className="text-white font-medium">{clean(g.symbol)}</span>
+            <span className="text-slate-500 font-mono text-[10px]">${fmt(g.price)}</span>
+          </button>
+        ))}
+        {losers.slice(0, 4).map((g) => (
+          <button key={"l" + g.symbol} onClick={() => onPick(g.symbol)} className="w-full flex items-center justify-between text-[11px] hover:bg-white/5 px-1 py-1 rounded">
+            <span className="bg-rose-500/10 text-rose-400 px-1.5 py-0.5 rounded font-bold font-mono text-[10px]">{g.changePercent.toFixed(1)}%</span>
+            <span className="text-white font-medium">{clean(g.symbol)}</span>
+            <span className="text-slate-500 font-mono text-[10px]">${fmt(g.price)}</span>
+          </button>
+        ))}
       </div>
     </div>
   );
