@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { generateText } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
-import { cdcxPrivate } from "./cdcx-auth.server";
 
 const FINNHUB = "https://finnhub.io/api/v1";
 const CDCX = "https://api.crypto.com/exchange/v1/public";
@@ -224,32 +223,6 @@ export const getAllCryptoTokens = createServerFn({ method: "GET" }).handler(asyn
     }))
     .filter((t) => t.price > 0)
     .sort((a, b) => b.volume - a.volume);
-});
-
-// ---- Crypto.com AUTHENTICATED account balance ----
-export const getCdcxBalance = createServerFn({ method: "GET" }).handler(async () => {
-  if (!process.env.CRYPTO_COM_API_KEY || !process.env.CRYPTO_COM_API_SECRET) {
-    return { configured: false as const, positions: [] as Array<{ ccy: string; total: number; available: number; usd: number }> };
-  }
-  try {
-    const result = await cdcxPrivate<{ data?: Array<{ total_available_balance?: string; total_cash_balance?: string; position_balances?: Array<{ instrument_name?: string; quantity?: string; market_value?: string; reserved_qty?: string }> }> }>({
-      method: "private/user-balance",
-    });
-    const acct = result.data?.[0];
-    const positions = (acct?.position_balances ?? [])
-      .map((p) => ({
-        ccy: (p.instrument_name ?? "").split("_")[0] || (p.instrument_name ?? "?"),
-        total: parseFloat(p.quantity ?? "0"),
-        available: Math.max(parseFloat(p.quantity ?? "0") - parseFloat(p.reserved_qty ?? "0"), 0),
-        usd: parseFloat(p.market_value ?? "0"),
-      }))
-      .filter((p) => p.total > 0 || p.usd > 0)
-      .sort((a, b) => b.usd - a.usd);
-    const totalUsd = parseFloat(acct?.total_cash_balance ?? acct?.total_available_balance ?? "0");
-    return { configured: true as const, totalUsd, positions };
-  } catch (e) {
-    return { configured: true as const, error: (e as Error).message, positions: [] as Array<{ ccy: string; total: number; available: number; usd: number }> };
-  }
 });
 
 // ---- MARKET PULSE (indices + majors) ----
