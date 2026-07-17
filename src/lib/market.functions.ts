@@ -135,6 +135,143 @@ export const getTopCryptoMovers = createServerFn({ method: "GET" }).handler(asyn
   return { gainers, losers };
 });
 
+// ---- MARKET PULSE (indices + majors) ----
+const PULSE_STOCKS = ["SPY", "QQQ", "DIA", "IWM", "VIX"];
+const PULSE_CRYPTO = ["BTCUSDT", "ETHUSDT", "SOLUSDT"];
+
+export const getMarketPulse = createServerFn({ method: "GET" }).handler(async () => {
+  const stocks = await Promise.all(
+    PULSE_STOCKS.map(async (s) => {
+      try {
+        const q = await finnhub("/quote", { symbol: s });
+        return { symbol: s, price: q.c as number, changePercent: q.dp as number, kind: "stock" as const };
+      } catch {
+        return null;
+      }
+    })
+  );
+  const crypto = await Promise.all(
+    PULSE_CRYPTO.map(async (s) => {
+      try {
+        const r = await fetch(`${BINANCE}/ticker/24hr?symbol=${s}`);
+        const t = await r.json();
+        return { symbol: s, price: parseFloat(t.lastPrice), changePercent: parseFloat(t.priceChangePercent), kind: "crypto" as const };
+      } catch {
+        return null;
+      }
+    })
+  );
+  return { stocks: stocks.filter(Boolean), crypto: crypto.filter(Boolean) };
+});
+
+// ---- TRENDING STOCKS (curated universe scan via Finnhub quotes) ----
+const STOCK_UNIVERSE = [
+  "AAPL","MSFT","NVDA","TSLA","AMZN","GOOGL","META","AMD","NFLX","AVGO",
+  "PLTR","COIN","SMCI","MSTR","ORCL","CRM","INTC","MU","QCOM","BA",
+  "JPM","BAC","XOM","CVX","UBER","SHOP","SNOW","ARM","DELL","MARA",
+];
+
+export const getTrendingStocks = createServerFn({ method: "GET" }).handler(async () => {
+  const quotes = await Promise.all(
+    STOCK_UNIVERSE.map(async (s) => {
+      try {
+        const q = await finnhub("/quote", { symbol: s });
+        return { symbol: s, price: q.c as number, changePercent: q.dp as number, high: q.h as number, low: q.l as number };
+      } catch {
+        return null;
+      }
+    })
+  );
+  const valid = quotes.filter(Boolean) as Array<{ symbol: string; price: number; changePercent: number; high: number; low: number }>;
+  const gainers = [...valid].sort((a, b) => b.changePercent - a.changePercent).slice(0, 6);
+  const losers = [...valid].sort((a, b) => a.changePercent - b.changePercent).slice(0, 6);
+  return { gainers, losers };
+});
+
+// ---- AI MARKET SCAN (structured cross-market picks) ----
+export const aiMarketScan = createServerFn({ method: "POST" }).handler(async () => {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) throw new Error("Missing LOVABLE_API_KEY");
+
+  const [cryptoMovers, stockMovers, pulse] = await Promise.all([
+    (async () => {
+      const res = await fetch(`${BINANCE}/ticker/24hr`);
+      const all = (await res.json()) as Array<{ symbol: string; lastPrice: string; priceChangePercent: string; quoteVolume: string }>;
+      const usdt = all
+        .filter((t) => t.symbol.endsWith("USDT") && parseFloat(t.quoteVolume) > 50_000_000)
+        .map((t) => ({ symbol: t.symbol, price: parseFloat(t.lastPrice), changePercent: parseFloat(t.priceChangePercent), volume: parseFloat(t.quoteVolume) }));
+      return {
+        gainers: [...usdt].sort((a, b) => b.changePercent - a.changePercent).slice(0, 8),
+        losers: [...usdt].sort((a, b) => a.changePercent - b.changePercent).slice(0, 8),
+      };
+    })(),
+    (async () => {
+      const quotes = await Promise.all(
+        STOCK_UNIVERSE.map(async (s) => {
+          try {
+            const q = await finnhub("/quote", { symbol: s });
+            return { symbol: s, price: q.c as number, changePercent: q.dp as number };
+          } catch { return null; }
+        })
+      );
+      const valid = quotes.filter(Boolean) as Array<{ symbol: string; price: number; changePercent: number }>;
+      return {
+        gainers: [...valid].sort((a, b) => b.changePercent - a.changePercent).slice(0, 6),
+        losers: [...valid].sort((a, b) => a.changePercent - b.changePercent).slice(0, 6),
+      };
+    })(),
+    (async () => {
+      const spy = await finnhub("/quote", { symbol: "SPY" }).catch(() => null);
+      const btc = await fetch(`${BINANCE}/ticker/24hr?symbol=BTCUSDT`).then((r) => r.json()).catch(() => null);
+      return {
+        spy: spy ? { price: spy.c, changePercent: spy.dp } : null,
+        btc: btc ? { price: parseFloat(btc.lastPrice), changePercent: parseFloat(btc.priceChangePercent) } : null,
+      };
+    })(),
+  ]);
+
+  const gateway = createLovableAiGatewayProvider(key);
+  const prompt = `You are Alpha Brain — a sharp cross-market scanner. Output STRICT JSON only, no prose, no markdown fences.
+
+Data snapshot (24h):
+Market pulse: SPY ${pulse.spy?.changePercent?.toFixed(2)}%, BTC ${pulse.btc?.changePercent?.toFixed(2)}%
+Crypto gainers: ${cryptoMovers.gainers.slice(0,6).map(g=>`${g.symbol.replace("USDT","")} +${g.changePercent.toFixed(1)}%`).join(", ")}
+Crypto losers: ${cryptoMovers.losers.slice(0,6).map(g=>`${g.symbol.replace("USDT","")} ${g.changePercent.toFixed(1)}%`).join(", ")}
+Stock gainers: ${stockMovers.gainers.map(g=>`${g.symbol} +${g.changePercent.toFixed(1)}%`).join(", ")}
+Stock losers: ${stockMovers.losers.map(g=>`${g.symbol} ${g.changePercent.toFixed(1)}%`).join(", ")}
+
+Return this exact JSON shape:
+{
+  "regime": "risk-on|risk-off|mixed",
+  "headline": "one punchy sentence about the market right now",
+  "trending": [ { "symbol": "STR", "kind": "stock|crypto", "thesis": "6-14 words", "signal": "breakout|momentum|reversal|accumulation", "confidence": 1-5 } ],
+  "avoid": [ { "symbol": "STR", "kind": "stock|crypto", "reason": "6-12 words" } ],
+  "ideas": [ { "title": "short idea", "action": "long|short|watch", "entry": "text", "invalidation": "text" } ]
+}
+Include 5 trending, 3 avoid, 3 ideas. Mix stocks & crypto.`;
+
+  const { text } = await generateText({
+    model: gateway("google/gemini-3.5-flash"),
+    prompt,
+  });
+
+  // strip code fences if any
+  const cleaned = text.replace(/```json|```/g, "").trim();
+  type ScanResult = {
+    regime?: string;
+    headline?: string;
+    trending?: Array<{ symbol: string; kind: string; thesis: string; signal: string; confidence: number }>;
+    avoid?: Array<{ symbol: string; kind: string; reason: string }>;
+    ideas?: Array<{ title: string; action: string; entry: string; invalidation: string }>;
+  };
+  let parsed: ScanResult | null = null;
+  try { parsed = JSON.parse(cleaned) as ScanResult; } catch {
+    const m = cleaned.match(/\{[\s\S]*\}/);
+    if (m) { try { parsed = JSON.parse(m[0]) as ScanResult; } catch { /* noop */ } }
+  }
+  return { scan: parsed, raw: text, pulse, cryptoMovers, stockMovers };
+});
+
 // ---- AI BRAIN ----
 type AssetSummary = {
   symbol: string;
