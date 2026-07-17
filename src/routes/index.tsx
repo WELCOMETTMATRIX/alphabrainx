@@ -1107,3 +1107,293 @@ function MoversCol({ title, items, onPick, color }: {
     </div>
   );
 }
+
+// ============================================================================
+// ONCHAIN EXPLORER — search / trending / new tokens across all chains
+// ============================================================================
+type OnchainTok = {
+  chain: string; address: string; name: string; symbol: string; icon?: string;
+  price?: number; priceChange24h?: number; liquidityUsd?: number; volume24h?: number;
+  fdv?: number; marketCap?: number; pairAddress?: string; dex?: string; pairUrl?: string;
+  createdAt?: number; description?: string;
+};
+
+const CHAIN_COLORS: Record<string, string> = {
+  ethereum: "bg-blue-500/25 text-blue-300",
+  bsc: "bg-yellow-500/25 text-yellow-300",
+  solana: "bg-fuchsia-500/25 text-fuchsia-300",
+  cronos: "bg-sky-500/25 text-sky-300",
+  base: "bg-cyan-500/25 text-cyan-300",
+  arbitrum: "bg-indigo-500/25 text-indigo-300",
+  polygon: "bg-violet-500/25 text-violet-300",
+  avalanche: "bg-rose-500/25 text-rose-300",
+  optimism: "bg-red-500/25 text-red-300",
+  sui: "bg-teal-500/25 text-teal-300",
+  ton: "bg-blue-400/25 text-blue-200",
+};
+
+function ChainTag({ chain }: { chain: string }) {
+  const cls = CHAIN_COLORS[chain] ?? "bg-slate-500/25 text-slate-300";
+  return <span className={`text-[8px] font-mono uppercase px-1 py-px rounded ${cls}`}>{chain}</span>;
+}
+
+function OnchainExplorer() {
+  const [mode, setMode] = useState<"trending" | "new" | "search">("trending");
+  const [query, setQuery] = useState("");
+  const [dq, setDq] = useState("");
+  useEffect(() => { const t = setTimeout(() => setDq(query.trim()), 350); return () => clearTimeout(t); }, [query]);
+  const [selected, setSelected] = useState<OnchainTok | null>(null);
+
+  const trending = useQuery({ queryKey: ["onchain-trending"], queryFn: () => getOnchainTrending(), refetchInterval: 60_000, enabled: mode === "trending" });
+  const newTokens = useQuery({ queryKey: ["onchain-new"], queryFn: () => getOnchainNew(), refetchInterval: 60_000, enabled: mode === "new" });
+  const searchQ = useQuery({
+    queryKey: ["onchain-search", dq],
+    queryFn: () => searchOnchain({ data: { query: dq } }),
+    enabled: mode === "search" && dq.length >= 2,
+  });
+
+  const list: OnchainTok[] = mode === "trending" ? (trending.data ?? []) : mode === "new" ? (newTokens.data ?? []) : (searchQ.data ?? []);
+  const loading = mode === "trending" ? trending.isLoading : mode === "new" ? newTokens.isLoading : searchQ.isLoading;
+
+  return (
+    <div className="flex flex-col min-h-0 flex-1">
+      <div className="p-3 border-b border-white/5 space-y-2">
+        <div className="glass-pill flex p-1 text-[10px]">
+          {(["trending", "new", "search"] as const).map((m) => (
+            <button key={m} onClick={() => setMode(m)}
+              className={`flex-1 py-1.5 font-semibold uppercase tracking-wider rounded-full transition flex items-center justify-center gap-1 ${mode === m ? "bg-white/15 text-white" : "text-slate-400"}`}>
+              {m === "trending" ? <><Flame className="h-3 w-3" /> Trending</> : m === "new" ? <><Sparkles className="h-3 w-3" /> New</> : <><Search className="h-3 w-3" /> Search</>}
+            </button>
+          ))}
+        </div>
+        {mode === "search" && (
+          <div className="relative">
+            <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)}
+              placeholder="Contract, symbol, or name (any chain)…"
+              className="w-full glass rounded-lg pl-8 pr-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-slate-500" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500" />
+          </div>
+        )}
+        <div className="text-[9px] font-mono text-slate-500 flex items-center gap-1">
+          <Link2 className="h-2.5 w-2.5" /> DexScreener + GeckoTerminal · Cronos · ETH · SOL · BSC · Base · Arbitrum · Polygon · +30 more
+        </div>
+      </div>
+      {loading && !list.length ? (
+        <div className="p-4 text-[11px] text-slate-500 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Scanning onchain…</div>
+      ) : !list.length ? (
+        <div className="p-4 text-[11px] text-slate-500">{mode === "search" ? "Type at least 2 characters." : "No tokens right now."}</div>
+      ) : (
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {list.map((t) => {
+            const up = (t.priceChange24h ?? 0) >= 0;
+            return (
+              <button key={`${t.chain}:${t.address}`} onClick={() => setSelected(t)}
+                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-white/5 transition text-left border-b border-white/5 min-h-[56px]">
+                {t.icon ? (
+                  <img src={t.icon} alt="" className="h-7 w-7 rounded-full bg-white/5 shrink-0" onError={(e) => ((e.currentTarget.style.display = "none"))} />
+                ) : (
+                  <div className="h-7 w-7 rounded-full bg-white/10 grid place-items-center text-[10px] font-bold text-white shrink-0">{t.symbol.slice(0, 2)}</div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-white truncate">{t.symbol}</span>
+                    <ChainTag chain={t.chain} />
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate max-w-[180px]">
+                    {t.name} · Liq ${Math.round(t.liquidityUsd ?? 0).toLocaleString()}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-[11px] font-mono text-slate-200">${fmt(t.price)}</div>
+                  <div className={`text-[10px] font-mono ${up ? "text-emerald-400" : "text-rose-400"}`}>
+                    {t.priceChange24h != null ? `${up ? "+" : ""}${t.priceChange24h.toFixed(2)}%` : "—"}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {selected && <OnchainDetailModal token={selected} onClose={() => setSelected(null)} />}
+    </div>
+  );
+}
+
+function OnchainDetailModal({ token, onClose }: { token: OnchainTok; onClose: () => void }) {
+  const detailQ = useQuery({
+    queryKey: ["onchain-detail", token.chain, token.address],
+    queryFn: () => getOnchainToken({ data: { address: token.address, chain: token.chain } }),
+    refetchInterval: 15_000,
+  });
+  const d = detailQ.data;
+  const pair = d?.token.pairAddress ?? token.pairAddress;
+
+  const candlesQ = useQuery({
+    queryKey: ["onchain-candles", token.chain, pair],
+    queryFn: () => getOnchainCandles({ data: { chain: token.chain, poolAddress: pair!, timeframe: "hour", aggregate: 1, limit: 168 } }),
+    enabled: !!pair,
+    refetchInterval: 30_000,
+  });
+  const tradesQ = useQuery({
+    queryKey: ["onchain-trades", token.chain, pair],
+    queryFn: () => getOnchainTrades({ data: { chain: token.chain, poolAddress: pair! } }),
+    enabled: !!pair,
+    refetchInterval: 15_000,
+  });
+
+  const chartRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!chartRef.current || !candlesQ.data?.length) return;
+    const el = chartRef.current;
+    const chart = createChart(el, {
+      width: el.clientWidth, height: 280,
+      layout: { background: { color: "transparent" }, textColor: "rgba(226,232,240,0.8)", fontFamily: "ui-monospace, monospace" },
+      grid: { vertLines: { color: "rgba(148,163,184,0.05)" }, horzLines: { color: "rgba(148,163,184,0.05)" } },
+      timeScale: { timeVisible: true, borderColor: "rgba(148,163,184,0.15)" },
+      rightPriceScale: { borderColor: "rgba(148,163,184,0.15)" },
+      crosshair: { mode: 0 },
+    });
+    const series = chart.addSeries(CandlestickSeries, {
+      upColor: "#10b981", downColor: "#f43f5e", borderUpColor: "#10b981", borderDownColor: "#f43f5e",
+      wickUpColor: "#10b981", wickDownColor: "#f43f5e",
+    });
+    series.setData(candlesQ.data.map((c) => ({ time: c.time as any, open: c.open, high: c.high, low: c.low, close: c.close })));
+    chart.timeScale().fitContent();
+    const ro = new ResizeObserver(() => chart.applyOptions({ width: el.clientWidth }));
+    ro.observe(el);
+    return () => { ro.disconnect(); chart.remove(); };
+  }, [candlesQ.data]);
+
+  const ai = useMutation({
+    mutationFn: () => aiOnchainAnalyze({ data: {
+      token: d?.token ?? token,
+      txns24h: d?.txns24h,
+      priceChange: d?.priceChange as any,
+    } }),
+  });
+
+  const copyAddr = () => { navigator.clipboard.writeText(token.address).catch(() => {}); };
+  const tok = d?.token ?? token;
+  const ageDays = tok.createdAt ? (Date.now() - tok.createdAt) / 86_400_000 : null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass-strong rounded-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="p-4 border-b border-white/10 flex items-start gap-3">
+          {tok.icon ? (
+            <img src={tok.icon} alt="" className="h-11 w-11 rounded-full bg-white/5 shrink-0" />
+          ) : (
+            <div className="h-11 w-11 rounded-full bg-white/10 grid place-items-center text-sm font-bold text-white shrink-0">{tok.symbol.slice(0, 2)}</div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-lg font-bold text-white">{tok.symbol}</span>
+              <span className="text-xs text-slate-400 truncate">{tok.name}</span>
+              <ChainTag chain={tok.chain} />
+              {tok.dex && <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-white/5 text-slate-400">{tok.dex}</span>}
+            </div>
+            <div className="mt-1 flex items-center gap-1.5 text-[10px] font-mono text-slate-500">
+              <span className="truncate max-w-[220px] sm:max-w-none">{tok.address}</span>
+              <button onClick={copyAddr} className="hover:text-white shrink-0" title="Copy address"><Copy className="h-3 w-3" /></button>
+              {tok.pairUrl && <a href={tok.pairUrl} target="_blank" rel="noreferrer" className="hover:text-white shrink-0" title="Open on DexScreener"><ExternalLink className="h-3 w-3" /></a>}
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-4 border-b border-white/5">
+          <Stat label="Price" value={`$${fmt(tok.price)}`} highlight={(tok.priceChange24h ?? 0) >= 0 ? "up" : "down"} sub={tok.priceChange24h != null ? `${tok.priceChange24h >= 0 ? "+" : ""}${tok.priceChange24h.toFixed(2)}% 24h` : ""} />
+          <Stat label="Liquidity" value={`$${Math.round(tok.liquidityUsd ?? 0).toLocaleString()}`} />
+          <Stat label="Volume 24h" value={`$${Math.round(tok.volume24h ?? 0).toLocaleString()}`} />
+          <Stat label="FDV" value={tok.fdv ? `$${Math.round(tok.fdv).toLocaleString()}` : "—"} sub={ageDays != null ? `Age ${ageDays.toFixed(1)}d` : ""} />
+        </div>
+
+        <div className="p-4 border-b border-white/5">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Price · 1h candles (USD)</div>
+          {!pair ? <div className="text-xs text-slate-500">No pool available.</div>
+            : candlesQ.isLoading ? <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Loading candles…</div>
+            : !candlesQ.data?.length ? <div className="text-xs text-slate-500">No candle data on this pool yet.</div>
+            : <div ref={chartRef} className="w-full" style={{ height: 280 }} />}
+        </div>
+
+        <div className="p-4 border-b border-white/5">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5"><Shield className="h-3 w-3" /> AI Risk & Path</div>
+            <button onClick={() => ai.mutate()} disabled={ai.isPending}
+              className="text-[10px] font-bold uppercase px-3 py-1.5 rounded-full flex items-center gap-1"
+              style={{ background: "var(--grad-neon)", color: "var(--primary-foreground)" }}>
+              {ai.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Brain className="h-3 w-3" />}
+              {ai.isPending ? "Thinking" : "Analyze"}
+            </button>
+          </div>
+          {ai.data && (
+            <div className="glass rounded-xl p-3 space-y-2">
+              <div className="flex items-center gap-2 text-[11px]">
+                <span className="font-mono text-slate-400">Risk</span>
+                <div className="flex-1 h-1.5 rounded bg-white/10 overflow-hidden">
+                  <div className={`h-full ${ai.data.risk >= 70 ? "bg-rose-500" : ai.data.risk >= 40 ? "bg-amber-400" : "bg-emerald-400"}`} style={{ width: `${ai.data.risk}%` }} />
+                </div>
+                <span className="font-mono font-bold text-white">{ai.data.risk}/100</span>
+                <span className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded ${ai.data.risk >= 70 ? "bg-rose-500/25 text-rose-300" : ai.data.risk >= 40 ? "bg-amber-500/25 text-amber-300" : "bg-emerald-500/25 text-emerald-300"}`}>{ai.data.riskLabel}</span>
+              </div>
+              {ai.data.reasons.length > 0 && (
+                <div className="text-[10px] font-mono text-slate-400">Flags: {ai.data.reasons.join(" · ")}</div>
+              )}
+              {ai.data.thesis && (
+                <div className="prose prose-invert prose-sm max-w-none text-[12px] whitespace-pre-wrap text-slate-200">{ai.data.thesis}</div>
+              )}
+            </div>
+          )}
+          {!ai.data && <p className="text-[11px] text-slate-500">Click Analyze for a deterministic risk score + AI thesis with bull/base/bear path, entry, and invalidation.</p>}
+        </div>
+
+        <div className="p-4">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Recent trades</div>
+          {tradesQ.isLoading ? <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Loading…</div>
+            : !tradesQ.data?.length ? <div className="text-xs text-slate-500">No trades yet.</div>
+            : (
+              <div className="text-[10px] font-mono max-h-[240px] overflow-y-auto">
+                <div className="grid grid-cols-4 gap-2 text-slate-500 border-b border-white/5 pb-1 mb-1 uppercase tracking-wider">
+                  <span>Time</span><span>Side</span><span className="text-right">Price</span><span className="text-right">USD</span>
+                </div>
+                {tradesQ.data.map((t, i) => (
+                  <div key={i} className="grid grid-cols-4 gap-2 py-0.5 hover:bg-white/5 rounded">
+                    <span className="text-slate-400">{new Date(t.blockTimestamp).toLocaleTimeString()}</span>
+                    <span className={t.kind === "buy" ? "text-emerald-400" : "text-rose-400"}>{t.kind.toUpperCase()}</span>
+                    <span className="text-right text-slate-200">${fmt(t.priceUsd)}</span>
+                    <span className="text-right text-slate-300">${Math.round(t.volumeUsd).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+        </div>
+
+        {d?.allPairs && d.allPairs.length > 1 && (
+          <div className="p-4 border-t border-white/5">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Liquidity pools ({d.allPairs.length})</div>
+            <div className="space-y-1 max-h-[180px] overflow-y-auto text-[11px] font-mono">
+              {d.allPairs.slice(0, 12).map((p, i) => (
+                <a key={i} href={p.url} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-2 px-2 py-1.5 rounded hover:bg-white/5">
+                  <span className="text-slate-300 truncate">{p.dex} · {tok.symbol}/{p.quote}</span>
+                  <ChainTag chain={p.chain} />
+                  <span className="text-slate-400">${Math.round(p.liquidityUsd).toLocaleString()}</span>
+                  <ExternalLink className="h-3 w-3 text-slate-500 shrink-0" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: "up" | "down" }) {
+  return (
+    <div className="glass rounded-xl p-2.5">
+      <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{label}</div>
+      <div className={`text-sm font-mono font-bold ${highlight === "up" ? "text-emerald-400" : highlight === "down" ? "text-rose-400" : "text-white"}`}>{value}</div>
+      {sub && <div className="text-[9px] font-mono text-slate-500 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
