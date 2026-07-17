@@ -723,8 +723,9 @@ type ScanData = {
   raw: string;
 };
 
-function ScanPanel({ data, loading, error, onRun, onPick }: {
+function ScanPanel({ data, loading, error, onRun, onPick, scope, setScope }: {
   data?: ScanData; loading: boolean; error: Error | null; onRun: () => void; onPick: (sym: string, kind: Kind) => void;
+  scope?: "cross" | "stocks" | "crypto" | "watchlist"; setScope?: (s: "cross" | "stocks" | "crypto" | "watchlist") => void;
 }) {
   const scan = data?.scan;
   return (
@@ -735,7 +736,7 @@ function ScanPanel({ data, loading, error, onRun, onPick }: {
           <h2 className="text-xs font-bold uppercase tracking-[0.15em] flex items-center gap-2">
             <Sparkles className="h-3.5 w-3.5 text-accent" /> AI Market Scanner
           </h2>
-          <p className="text-[11px] text-slate-400 mt-0.5">Scans stocks + crypto for trending signals</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Scans every stock &amp; crypto for trending signals</p>
         </div>
         <button onClick={onRun} disabled={loading}
           className="text-xs px-4 py-2 rounded-xl font-bold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5 shrink-0"
