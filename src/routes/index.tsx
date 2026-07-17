@@ -5,7 +5,7 @@ import { createChart, CandlestickSeries, LineSeries, type IChartApi, type ISerie
 import {
   Activity, Bell, BellRing, Brain, GitCompareArrows, LayoutGrid,
   Loader2, Plus, Search, Settings2, Sparkles, TrendingDown, TrendingUp,
-  Wallet, X, Zap,
+  X, Zap,
 } from "lucide-react";
 import {
   aiAnalyze, aiMarketScan,
