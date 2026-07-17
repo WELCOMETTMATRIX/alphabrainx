@@ -1608,11 +1608,11 @@ function DraggableModal({ onClose, title, width = 720, children }: {
 
   const w = Math.min(width, window.innerWidth - 40);
   const h = minimized ? 56 : Math.min(window.innerHeight * 0.86, 780);
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="drag-modal flex flex-col overflow-hidden"
-        style={{ left: pos?.x ?? 0, top: pos?.y ?? 0, width: w, height: h }}>
+      <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="drag-modal flex flex-col overflow-hidden z-[9999]"
+        style={{ left: pos?.x ?? 0, top: pos?.y ?? 0, width: w, height: h, position: "fixed" }}>
         <div className="drag-handle flex items-center gap-2 px-3 h-11 border-b border-white/10 bg-white/5"
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
           <span className="flex gap-1.5 shrink-0">
@@ -1628,7 +1628,8 @@ function DraggableModal({ onClose, title, width = 720, children }: {
         </div>
         {!minimized && <div className="flex-1 overflow-y-auto scroll-thin">{children}</div>}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 
