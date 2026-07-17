@@ -1055,50 +1055,6 @@ function CompareManager({ compareSyms, onRemove, onOpen }: {
 }
 
 // ============================================================================
-// BALANCE — Crypto.com authenticated account (server-side only)
-// ============================================================================
-function BalanceCard({ data, loading }: {
-  data?: { configured: boolean; totalUsd?: number; error?: string; positions: Array<{ ccy: string; total: number; available: number; usd: number }> };
-  loading: boolean;
-}) {
-  return (
-    <div className="glass rounded-2xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs font-bold uppercase tracking-[0.15em] flex items-center gap-2">
-          <Wallet className="h-3.5 w-3.5 text-primary" /> Crypto.com Account
-        </h2>
-        <Settings2 className="h-3.5 w-3.5 text-slate-500" />
-      </div>
-      {loading && <div className="text-[11px] text-slate-500 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Loading balance…</div>}
-      {!loading && data && !data.configured && (
-        <div className="text-[11px] text-slate-400">API keys not detected. Add <code className="glass-pill px-1.5 py-0.5 mx-0.5 text-[10px]">CRYPTO_COM_API_KEY</code> + <code className="glass-pill px-1.5 py-0.5 mx-0.5 text-[10px]">CRYPTO_COM_API_SECRET</code> to see live balances here.</div>
-      )}
-      {!loading && data?.configured && data.error && (
-        <div className="text-[11px] text-rose-400">Auth error: {data.error}</div>
-      )}
-      {!loading && data?.configured && !data.error && (
-        <>
-          <div className="mb-2">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Est. total</div>
-            <div className="text-2xl font-black font-mono">${fmt(data.totalUsd)}</div>
-          </div>
-          <div className="space-y-1 max-h-[180px] overflow-y-auto">
-            {data.positions.length === 0 && <div className="text-[11px] text-slate-500">No positions.</div>}
-            {data.positions.slice(0, 20).map((p) => (
-              <div key={p.ccy} className="flex items-center justify-between text-xs">
-                <span className="font-bold">{p.ccy}</span>
-                <span className="text-slate-400 font-mono">{fmt(p.total)}</span>
-                <span className="font-mono">${fmt(p.usd)}</span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
 // MOVERS MINI (right rail)
 // ============================================================================
 function MoversMini({ crypto, stocks, onPickCrypto, onPickStock }: {
