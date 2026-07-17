@@ -74,6 +74,12 @@ function Dashboard() {
   const [compareSyms, setCompareSyms] = useLocal<Watch[]>("ab.compare", []);
   const [compareOn, setCompareOn] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
+  const [openAsset, setOpenAsset] = useState<Watch | null>(null);
+  const [scanScope, setScanScope] = useState<"cross" | "stocks" | "crypto" | "watchlist">("cross");
+  const [panels, setPanels] = useLocal<{ chart: boolean; scan: boolean; ai: boolean }>("ab.panels", { chart: true, scan: true, ai: true });
+  const [chartPop, setChartPop] = useState(false);
+  const [aiPop, setAiPop] = useState(false);
+
 
   // Fetch quotes for watchlist + compare (dedupe)
   const tracked = useMemo(() => {
