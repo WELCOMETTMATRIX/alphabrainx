@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { createChart, CandlestickSeries, LineSeries, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import {
-  Activity, Bell, BellRing, Brain, Copy, ExternalLink, Flame, GitCompareArrows, LayoutGrid,
-  Link2, Loader2, Plus, Search, Settings2, Shield, Sparkles, TrendingDown, TrendingUp,
+  Activity, Bell, BellRing, Brain, Copy, Download, ExternalLink, Flame, GitCompareArrows, LayoutGrid,
+  Link2, Loader2, Minus, Plus, Search, Settings2, Shield, Sparkles, TrendingDown, TrendingUp,
   X, Zap,
 } from "lucide-react";
 import {
