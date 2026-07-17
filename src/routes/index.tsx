@@ -36,9 +36,14 @@ const DEFAULT_WATCH: Watch[] = [
 const clean = (s: string) => s.replace(/USDT$|USD$/, "");
 function fmt(n: number | undefined | null) {
   if (n == null || Number.isNaN(n)) return "—";
-  if (Math.abs(n) >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  if (Math.abs(n) >= 1) return n.toFixed(2);
-  return n.toFixed(4);
+  const a = Math.abs(n);
+  if (a === 0) return "0";
+  if (a >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (a >= 1) return n.toFixed(2);
+  if (a >= 0.01) return n.toFixed(4);
+  // For micro-prices (e.g. 0.00001234) show enough decimals to keep 4 significant digits, capped at 12.
+  const digits = Math.min(12, Math.max(4, 2 - Math.floor(Math.log10(a)) + 3));
+  return n.toFixed(digits).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 // -------- Local storage helpers --------
