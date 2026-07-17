@@ -383,7 +383,7 @@ function ToastHost() {
 // ============================================================================
 // HEADER
 // ============================================================================
-function Header({ alerts, onOpenAlerts, onOpenInstall }: { alerts: number; onOpenAlerts: () => void; onOpenInstall: () => void }) {
+function Header({ alerts, onOpenAlerts, onOpenInstall, theme, setTheme }: { alerts: number; onOpenAlerts: () => void; onOpenInstall: () => void; theme: "solaris" | "nebula"; setTheme: (v: "solaris" | "nebula") => void }) {
   return (
     <header className="sticky top-0 z-20 px-3 pt-3 pt-safe">
       <div className="glass-strong rounded-2xl grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 sm:flex sm:justify-between">
