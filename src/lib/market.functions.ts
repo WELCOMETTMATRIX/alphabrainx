@@ -509,7 +509,7 @@ Watchlist snapshot (24h):
 ${assetList}
 ${techBlock}
 
-${data.question ? `User question: ${data.question}\n\nAnswer directly and specifically, citing prices, %, and structural levels where relevant.` : `Deliver a full brief for **${data.symbol}** and the watchlist:
+${question ? `User question: ${question}\n\nAnswer directly and specifically, citing prices, %, and structural levels where relevant.` : `Deliver a full brief for **${data.symbol}** and the watchlist:
 
 ## 🧭 Regime Read
 One paragraph: risk-on / risk-off / rotation, and what it means right now.
