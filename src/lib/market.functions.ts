@@ -353,23 +353,31 @@ export const getTrendingStocks = createServerFn({ method: "GET" }).handler(async
 });
 
 // ---- AI MARKET SCAN (structured cross-market picks) ----
-export const aiMarketScan = createServerFn({ method: "POST" }).handler(async () => {
+export const aiMarketScan = createServerFn({ method: "POST" })
+  .inputValidator((d: { scope?: "cross" | "stocks" | "crypto" | "watchlist"; watchlist?: string[] } | undefined) => d ?? {})
+  .handler(async ({ data }) => {
+  const scope = data.scope ?? "cross";
   const key = process.env.LOVABLE_API_KEY;
   if (!key) throw new Error("Missing LOVABLE_API_KEY");
 
+  const wantCrypto = scope === "cross" || scope === "crypto";
+  const wantStocks = scope === "cross" || scope === "stocks";
+  const wideCrypto = scope === "crypto" ? 12 : 6;
+  const wideStocks = scope === "stocks" ? 10 : 6;
+
   const [cryptoMovers, stockMovers, pulse] = await Promise.all([
-    (async () => {
+    wantCrypto ? (async () => {
       const rows = await cdcxTickers();
       const usdt = rows
         .filter((t) => t.i.endsWith("_USDT") || t.i.endsWith("_USD"))
         .map((t) => ({ symbol: fromCdcxInstrument(t.i), price: parseFloat(t.a ?? "0"), changePercent: parseFloat(t.c ?? "0") * 100, volume: parseFloat(t.vv ?? "0") }))
         .filter((t) => t.volume > 250_000 && !Number.isNaN(t.changePercent));
       return {
-        gainers: [...usdt].sort((a, b) => b.changePercent - a.changePercent).slice(0, 8),
-        losers: [...usdt].sort((a, b) => a.changePercent - b.changePercent).slice(0, 8),
+        gainers: [...usdt].sort((a, b) => b.changePercent - a.changePercent).slice(0, wideCrypto),
+        losers: [...usdt].sort((a, b) => a.changePercent - b.changePercent).slice(0, wideCrypto),
       };
-    })(),
-    (async () => {
+    })() : Promise.resolve({ gainers: [], losers: [] }),
+    wantStocks ? (async () => {
       const quotes = await Promise.all(
         STOCK_UNIVERSE.map(async (s) => {
           try {
@@ -380,10 +388,10 @@ export const aiMarketScan = createServerFn({ method: "POST" }).handler(async () 
       );
       const valid = quotes.filter(Boolean) as Array<{ symbol: string; price: number; changePercent: number }>;
       return {
-        gainers: [...valid].sort((a, b) => b.changePercent - a.changePercent).slice(0, 6),
-        losers: [...valid].sort((a, b) => a.changePercent - b.changePercent).slice(0, 6),
+        gainers: [...valid].sort((a, b) => b.changePercent - a.changePercent).slice(0, wideStocks),
+        losers: [...valid].sort((a, b) => a.changePercent - b.changePercent).slice(0, wideStocks),
       };
-    })(),
+    })() : Promise.resolve({ gainers: [], losers: [] }),
     (async () => {
       const spy = await finnhub("/quote", { symbol: "SPY" }).catch(() => null);
       const btcRows = await cdcxTickers("BTC_USDT").catch(() => [] as CdcxTicker[]);
@@ -395,15 +403,19 @@ export const aiMarketScan = createServerFn({ method: "POST" }).handler(async () 
     })(),
   ]);
 
+  const scopeLabel = scope === "cross" ? "All Markets (stocks + crypto)"
+    : scope === "stocks" ? "Stocks only" : scope === "crypto" ? "Crypto only" : "Watchlist";
+
   const gateway = createLovableAiGatewayProvider(key);
-  const prompt = `You are Alpha Brain — a sharp cross-market scanner. Output STRICT JSON only, no prose, no markdown fences.
+  const prompt = `You are Alpha Brain — a sharp cross-market scanner. Scope: ${scopeLabel}. Output STRICT JSON only, no prose, no markdown fences.
 
 Data snapshot (24h):
 Market pulse: SPY ${pulse.spy?.changePercent?.toFixed(2)}%, BTC ${pulse.btc?.changePercent?.toFixed(2)}%
-Crypto gainers: ${cryptoMovers.gainers.slice(0,6).map(g=>`${g.symbol.replace("USDT","")} +${g.changePercent.toFixed(1)}%`).join(", ")}
-Crypto losers: ${cryptoMovers.losers.slice(0,6).map(g=>`${g.symbol.replace("USDT","")} ${g.changePercent.toFixed(1)}%`).join(", ")}
-Stock gainers: ${stockMovers.gainers.map(g=>`${g.symbol} +${g.changePercent.toFixed(1)}%`).join(", ")}
-Stock losers: ${stockMovers.losers.map(g=>`${g.symbol} ${g.changePercent.toFixed(1)}%`).join(", ")}
+${wantCrypto ? `Crypto gainers: ${cryptoMovers.gainers.slice(0,8).map(g=>`${g.symbol.replace("USDT","")} +${g.changePercent.toFixed(1)}%`).join(", ")}
+Crypto losers: ${cryptoMovers.losers.slice(0,8).map(g=>`${g.symbol.replace("USDT","")} ${g.changePercent.toFixed(1)}%`).join(", ")}` : ""}
+${wantStocks ? `Stock gainers: ${stockMovers.gainers.map(g=>`${g.symbol} +${g.changePercent.toFixed(1)}%`).join(", ")}
+Stock losers: ${stockMovers.losers.map(g=>`${g.symbol} ${g.changePercent.toFixed(1)}%`).join(", ")}` : ""}
+${data.watchlist?.length ? `Watchlist focus: ${data.watchlist.join(", ")}` : ""}
 
 Return this exact JSON shape:
 {
@@ -413,7 +425,7 @@ Return this exact JSON shape:
   "avoid": [ { "symbol": "STR", "kind": "stock|crypto", "reason": "6-12 words" } ],
   "ideas": [ { "title": "short idea", "action": "long|short|watch", "entry": "text", "invalidation": "text" } ]
 }
-Include 5 trending, 3 avoid, 3 ideas. Mix stocks & crypto.`;
+Include 5 trending, 3 avoid, 3 ideas.${scope === "cross" ? " Mix stocks & crypto." : scope === "stocks" ? " Stocks only." : scope === "crypto" ? " Crypto only." : ""}`;
 
   const { text } = await generateText({
     model: gateway("google/gemini-3-flash-preview"),
