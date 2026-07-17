@@ -257,10 +257,17 @@ Include 5 trending, 3 avoid, 3 ideas. Mix stocks & crypto.`;
 
   // strip code fences if any
   const cleaned = text.replace(/```json|```/g, "").trim();
-  let parsed: unknown = null;
-  try { parsed = JSON.parse(cleaned); } catch {
+  type ScanResult = {
+    regime?: string;
+    headline?: string;
+    trending?: Array<{ symbol: string; kind: string; thesis: string; signal: string; confidence: number }>;
+    avoid?: Array<{ symbol: string; kind: string; reason: string }>;
+    ideas?: Array<{ title: string; action: string; entry: string; invalidation: string }>;
+  };
+  let parsed: ScanResult | null = null;
+  try { parsed = JSON.parse(cleaned) as ScanResult; } catch {
     const m = cleaned.match(/\{[\s\S]*\}/);
-    if (m) { try { parsed = JSON.parse(m[0]); } catch { /* noop */ } }
+    if (m) { try { parsed = JSON.parse(m[0]) as ScanResult; } catch { /* noop */ } }
   }
   return { scan: parsed, raw: text, pulse, cryptoMovers, stockMovers };
 });
