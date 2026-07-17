@@ -186,7 +186,7 @@ function Dashboard() {
     <div className="min-h-screen text-slate-100 flex flex-col relative">
       <ToastHost />
       <TickerTape stocks={stockMoversQuery.data} crypto={cryptoMoversQuery.data} />
-      <Header alerts={activeAlerts} onOpenAlerts={() => setMobileTab("alerts")} />
+      <Header alerts={activeAlerts} onOpenAlerts={() => setMobileTab("alerts")} onOpenInstall={() => setInstallOpen(true)} />
       <PulseBar pulse={pulseQuery.data} />
 
       {/* Desktop layout */}
