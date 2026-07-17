@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { generateText } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
-import { cdcxPrivate } from "./cdcx-auth.server";
+
 
 const FINNHUB = "https://finnhub.io/api/v1";
 const CDCX = "https://api.crypto.com/exchange/v1/public";
