@@ -1174,14 +1174,15 @@ function OnchainExplorer() {
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <div className="p-3 border-b border-white/5 space-y-2">
-        <div className="glass-pill flex p-1 text-[10px]">
-          {(["trending", "new", "search"] as const).map((m) => (
-            <button key={m} onClick={() => setMode(m)}
-              className={`flex-1 py-1.5 font-semibold uppercase tracking-wider rounded-full transition flex items-center justify-center gap-1 ${mode === m ? "bg-white/15 text-white" : "text-slate-400"}`}>
-              {m === "trending" ? <><Flame className="h-3 w-3" /> Trending</> : m === "new" ? <><Sparkles className="h-3 w-3" /> New</> : <><Search className="h-3 w-3" /> Search</>}
-            </button>
-          ))}
-        </div>
+        <SegmentedTabs
+          value={mode}
+          onChange={(v) => setMode(v as typeof mode)}
+          items={[
+            { value: "trending", label: "Trending", icon: <Flame className="h-3.5 w-3.5" /> },
+            { value: "new", label: "New", icon: <Sparkles className="h-3.5 w-3.5" /> },
+            { value: "search", label: "Search", icon: <Search className="h-3.5 w-3.5" /> },
+          ]}
+        />
         {mode === "search" && (
           <div className="relative">
             <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)}
