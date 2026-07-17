@@ -202,53 +202,95 @@ function Dashboard() {
             watch={watch} setWatch={setWatch} selected={selected} setSelected={setSelected}
             quoteMap={quoteMap}
             compareOn={compareOn} compareSyms={compareSyms} onToggleCompare={toggleCompare}
+            onOpenAsset={(w) => setOpenAsset(w)}
           />
         </aside>
         <main className="col-span-6 flex flex-col gap-3 min-h-0">
           <SymbolHeader selected={selected} quote={quoteMap.get(selected.symbol)}
             compareOn={compareOn} setCompareOn={setCompareOn}
-            compareCount={compareSyms.length} />
-          {compareOn
-            ? <CompareChart series={compareSyms} candles={compareCandles.map((c) => c.data ?? [])} loading={compareCandles.some((c) => c.isLoading)} />
-            : <ChartCard data={candlesQuery.data ?? []} loading={candlesQuery.isLoading} symbol={selected.symbol} />}
-          <ScanPanel data={scanMut.data} loading={scanMut.isPending} error={scanMut.error as Error | null}
-            onRun={() => scanMut.mutate()} onPick={(s, k) => focusOn({ symbol: s, kind: k })} />
+            compareCount={compareSyms.length}
+            onExpand={() => setOpenAsset(selected)} />
+          {panels.chart && !chartPop && (
+            <PanelShell
+              onClose={() => setPanels({ ...panels, chart: false })}
+              onPop={() => setChartPop(true)}>
+              {compareOn
+                ? <CompareChart series={compareSyms} candles={compareCandles.map((c) => c.data ?? [])} loading={compareCandles.some((c) => c.isLoading)} />
+                : <ChartCard data={candlesQuery.data ?? []} loading={candlesQuery.isLoading} symbol={selected.symbol} />}
+            </PanelShell>
+          )}
+          {panels.scan && (
+            <PanelShell onClose={() => setPanels({ ...panels, scan: false })}>
+              <ScanPanel data={scanMut.data} loading={scanMut.isPending} error={scanMut.error as Error | null}
+                scope={scanScope} setScope={setScanScope}
+                onRun={() => scanMut.mutate()} onPick={(s, k) => setOpenAsset({ symbol: s, kind: k })} />
+            </PanelShell>
+          )}
+          <PanelRestoreBar
+            hidden={{ chart: !panels.chart, scan: !panels.scan, ai: !panels.ai }}
+            onRestore={(k) => setPanels({ ...panels, [k]: true })}
+          />
         </main>
         <aside className="col-span-3 flex flex-col gap-3 min-h-0">
-          <AIPanel text={aiText} loading={aiMut.isPending} error={aiMut.error as Error | null}
-            onRun={() => aiMut.mutate(undefined)} question={question} setQuestion={setQuestion}
-            onAsk={() => aiMut.mutate(question)} symbol={selected.symbol} />
+          {panels.ai && !aiPop && (
+            <PanelShell onClose={() => setPanels({ ...panels, ai: false })} onPop={() => setAiPop(true)}>
+              <AIPanel text={aiText} loading={aiMut.isPending} error={aiMut.error as Error | null}
+                onRun={() => aiMut.mutate(undefined)} question={question} setQuestion={setQuestion}
+                onAsk={() => aiMut.mutate(question)} symbol={selected.symbol} />
+            </PanelShell>
+          )}
           <AlertsPanel alerts={alerts} setAlerts={setAlerts} selected={selected}
             currentPrice={quoteMap.get(selected.symbol)?.price} />
           <MoversMini crypto={cryptoMoversQuery.data} stocks={stockMoversQuery.data}
-            onPickCrypto={(s) => focusOn({ symbol: s, kind: "crypto" })}
-            onPickStock={(s) => focusOn({ symbol: s, kind: "stock" })} />
+            onPickCrypto={(s) => setOpenAsset({ symbol: s, kind: "crypto" })}
+            onPickStock={(s) => setOpenAsset({ symbol: s, kind: "stock" })} />
         </aside>
       </div>
+
+      {/* Chart pop-out */}
+      {chartPop && (
+        <DraggableModal onClose={() => setChartPop(false)} title={`${clean(selected.symbol)} · Chart`} width={960}>
+          <div className="p-4">
+            {compareOn
+              ? <CompareChart series={compareSyms} candles={compareCandles.map((c) => c.data ?? [])} loading={compareCandles.some((c) => c.isLoading)} />
+              : <ChartCard data={candlesQuery.data ?? []} loading={candlesQuery.isLoading} symbol={selected.symbol} />}
+          </div>
+        </DraggableModal>
+      )}
+      {aiPop && (
+        <DraggableModal onClose={() => setAiPop(false)} title={`AI Analyst · ${clean(selected.symbol)}`} width={620}>
+          <div className="p-4">
+            <AIPanel text={aiText} loading={aiMut.isPending} error={aiMut.error as Error | null}
+              onRun={() => aiMut.mutate(undefined)} question={question} setQuestion={setQuestion}
+              onAsk={() => aiMut.mutate(question)} symbol={selected.symbol} />
+          </div>
+        </DraggableModal>
+      )}
 
       {/* Mobile layout */}
       <div className="lg:hidden flex-1 flex flex-col gap-3 p-3 pb-24 min-h-[calc(100vh-160px)]">
         {mobileTab === "chart" && (
           <>
             <SymbolHeader selected={selected} quote={quoteMap.get(selected.symbol)}
-              compareOn={compareOn} setCompareOn={setCompareOn} compareCount={compareSyms.length} />
+              compareOn={compareOn} setCompareOn={setCompareOn} compareCount={compareSyms.length}
+              onExpand={() => setOpenAsset(selected)} />
             {compareOn
               ? <CompareChart series={compareSyms} candles={compareCandles.map((c) => c.data ?? [])} loading={compareCandles.some((c) => c.isLoading)} />
               : <ChartCard data={candlesQuery.data ?? []} loading={candlesQuery.isLoading} symbol={selected.symbol} />}
             <ScanPanel data={scanMut.data} loading={scanMut.isPending} error={scanMut.error as Error | null}
-              onRun={() => scanMut.mutate()} onPick={(s, k) => focusOn({ symbol: s, kind: k })} />
+              scope={scanScope} setScope={setScanScope}
+              onRun={() => scanMut.mutate()} onPick={(s, k) => setOpenAsset({ symbol: s, kind: k })} />
           </>
         )}
         {mobileTab === "browse" && (
           <NavigatorPanel watch={watch} setWatch={setWatch} selected={selected} setSelected={(w) => { setSelected(w); setMobileTab("chart"); }}
             quoteMap={quoteMap}
-            compareOn={compareOn} compareSyms={compareSyms} onToggleCompare={toggleCompare} />
+            compareOn={compareOn} compareSyms={compareSyms} onToggleCompare={toggleCompare}
+            onOpenAsset={(w) => setOpenAsset(w)} />
         )}
         {mobileTab === "alerts" && (
-          <>
-            <AlertsPanel alerts={alerts} setAlerts={setAlerts} selected={selected}
-              currentPrice={quoteMap.get(selected.symbol)?.price} />
-          </>
+          <AlertsPanel alerts={alerts} setAlerts={setAlerts} selected={selected}
+            currentPrice={quoteMap.get(selected.symbol)?.price} />
         )}
         {mobileTab === "compare" && (
           <CompareManager compareSyms={compareSyms} onRemove={(s) => setCompareSyms((p) => p.filter((x) => x.symbol !== s))}
@@ -290,6 +332,13 @@ function Dashboard() {
       </nav>
 
       {installOpen && <InstallModal onClose={() => setInstallOpen(false)} />}
+      {openAsset && (
+        <AssetDetailModal
+          asset={openAsset}
+          onClose={() => setOpenAsset(null)}
+          onPin={(w) => { setWatch((prev) => prev.find((x) => x.symbol === w.symbol) ? prev : [...prev, w]); setSelected(w); setOpenAsset(null); setMobileTab("chart"); }}
+        />
+      )}
 
       <footer className="hidden lg:block text-center text-[10px] text-slate-500 py-3 font-mono uppercase tracking-widest">
         Alpha Brain Pro · Crypto.com Exchange · Finnhub · Lovable AI · Not financial advice
@@ -297,6 +346,7 @@ function Dashboard() {
     </div>
   );
 }
+
 
 // ============================================================================
 // TOAST HOST — small glass toast for alert firings
