@@ -406,6 +406,18 @@ function Header({ alerts, onOpenAlerts, onOpenInstall, theme, setTheme }: { aler
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <div className="hidden sm:block"><SearchBox /></div>
+          <div className="glass-pill hidden md:flex items-center p-0.5 text-[10px] font-mono uppercase tracking-wider">
+            <button onClick={() => setTheme("solaris")}
+              className={`tap px-2.5 py-1 rounded-full transition ${theme === "solaris" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              style={theme === "solaris" ? { background: "var(--grad-neon)" } : undefined}>Solaris</button>
+            <button onClick={() => setTheme("nebula")}
+              className={`tap px-2.5 py-1 rounded-full transition ${theme === "nebula" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              style={theme === "nebula" ? { background: "var(--grad-neon)" } : undefined}>Nebula</button>
+          </div>
+          <button onClick={() => setTheme(theme === "solaris" ? "nebula" : "solaris")} title="Switch template"
+            className="md:hidden tap h-10 w-10 grid place-items-center rounded-xl glass hover:bg-white/10">
+            <Sparkles className="h-4 w-4" />
+          </button>
           <button onClick={onOpenInstall} title="Install app"
             className="tap h-10 px-3 sm:px-3 grid place-items-center rounded-xl glass hover:bg-white/10 flex items-center gap-1.5">
             <Download className="h-4 w-4" />
