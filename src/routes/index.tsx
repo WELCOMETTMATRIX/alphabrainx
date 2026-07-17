@@ -1588,9 +1588,11 @@ function DraggableModal({ onClose, title, width = 720, children }: {
   };
   const onPointerUp = () => { dragRef.current = null; };
 
+  if (typeof document === "undefined") return null;
+
   if (isMobile) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm pb-safe" onClick={onClose}>
+    return createPortal(
+      <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/60 backdrop-blur-sm pb-safe" onClick={onClose}>
         <div className="drag-modal w-full max-w-lg max-h-[92vh] flex flex-col rounded-t-3xl rounded-b-none" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-white/10">
             <div className="mx-auto h-1 w-10 rounded-full bg-white/25" />
@@ -1599,7 +1601,8 @@ function DraggableModal({ onClose, title, width = 720, children }: {
           <div className="px-4 py-1 text-[11px] font-mono text-slate-400 border-b border-white/5 truncate">{title}</div>
           <div className="flex-1 overflow-y-auto scroll-thin overscroll-contain">{children}</div>
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
