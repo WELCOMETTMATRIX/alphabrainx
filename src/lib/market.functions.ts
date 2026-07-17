@@ -284,15 +284,28 @@ export const getMarketPulse = createServerFn({ method: "GET" }).handler(async ()
 
 // ---- TRENDING STOCKS (curated universe scan via Finnhub quotes) ----
 export const STOCK_UNIVERSE = [
-  "AAPL","MSFT","NVDA","TSLA","AMZN","GOOGL","META","AMD","NFLX","AVGO",
-  "PLTR","COIN","SMCI","MSTR","ORCL","CRM","INTC","MU","QCOM","BA",
-  "JPM","BAC","XOM","CVX","UBER","SHOP","SNOW","ARM","DELL","MARA",
-  "GOOG","BABA","DIS","V","MA","PYPL","SQ","ROKU","ABNB","LYFT",
-  "PEP","KO","WMT","TGT","COST","HD","LOW","NKE","MCD","SBUX",
-  "F","GM","RIVN","LCID","GE","CAT","DE","HON","BLK","GS",
+  // Mega-cap tech
+  "AAPL","MSFT","NVDA","TSLA","AMZN","GOOGL","GOOG","META","AVGO","ORCL",
+  // Semis & AI
+  "AMD","INTC","MU","QCOM","ARM","SMCI","TSM","ASML","MRVL","LRCX","AMAT","KLAC","ADI","NXPI","ON","MPWR",
+  // Software / Cloud
+  "CRM","SNOW","PLTR","NOW","ADBE","INTU","WDAY","PANW","CRWD","ZS","NET","DDOG","MDB","OKTA","TEAM","SHOP","SQ","PYPL","UBER","ABNB","LYFT","ROKU","SPOT",
+  // Crypto-adjacent
+  "COIN","MSTR","MARA","RIOT","CLSK","HUT","BITF",
+  // Consumer / Retail
+  "NFLX","DIS","NKE","MCD","SBUX","COST","WMT","TGT","HD","LOW","BABA","JD","PDD","PEP","KO","MDLZ","CMG","LULU",
+  // Autos / EV
+  "F","GM","RIVN","LCID","NIO","XPEV","LI","STLA","TM",
+  // Finance
+  "JPM","BAC","WFC","GS","MS","C","BLK","SCHW","V","MA","AXP","BX","KKR","COF","USB","PNC",
+  // Energy / Industrials
+  "XOM","CVX","COP","SLB","OXY","BP","SHEL","BA","CAT","DE","GE","HON","LMT","RTX","NOC","MMM","UPS","FDX","DAL","UAL","AAL",
+  // Health / Biotech
+  "LLY","UNH","JNJ","PFE","MRK","ABBV","TMO","DHR","AMGN","GILD","MRNA","BNTX","REGN","VRTX","ISRG","BMY",
+  // ETFs / Indices
+  "SPY","QQQ","DIA","IWM","VOO","XLK","XLF","XLE","SMH","ARKK","GLD","SLV","TLT","VIX","EEM","EFA",
 ];
 
-// Names for the universe (for search / listing)
 const STOCK_NAMES: Record<string, string> = {
   AAPL: "Apple", MSFT: "Microsoft", NVDA: "NVIDIA", TSLA: "Tesla", AMZN: "Amazon",
   GOOGL: "Alphabet A", GOOG: "Alphabet C", META: "Meta Platforms", AMD: "AMD", NFLX: "Netflix",
@@ -306,6 +319,24 @@ const STOCK_NAMES: Record<string, string> = {
   HD: "Home Depot", LOW: "Lowe's", NKE: "Nike", MCD: "McDonald's", SBUX: "Starbucks",
   F: "Ford", GM: "General Motors", RIVN: "Rivian", LCID: "Lucid", GE: "GE Aerospace",
   CAT: "Caterpillar", DE: "Deere", HON: "Honeywell", BLK: "BlackRock", GS: "Goldman Sachs",
+  TSM: "TSMC", ASML: "ASML", MRVL: "Marvell", LRCX: "Lam Research", AMAT: "Applied Materials",
+  KLAC: "KLA", ADI: "Analog Devices", NXPI: "NXP", ON: "onsemi", MPWR: "Monolithic Power",
+  NOW: "ServiceNow", ADBE: "Adobe", INTU: "Intuit", WDAY: "Workday", PANW: "Palo Alto",
+  CRWD: "CrowdStrike", ZS: "Zscaler", NET: "Cloudflare", DDOG: "Datadog", MDB: "MongoDB",
+  OKTA: "Okta", TEAM: "Atlassian", SPOT: "Spotify", RIOT: "Riot Platforms", CLSK: "CleanSpark",
+  HUT: "Hut 8", BITF: "Bitfarms", JD: "JD.com", PDD: "PDD Holdings", MDLZ: "Mondelez",
+  CMG: "Chipotle", LULU: "Lululemon", NIO: "NIO", XPEV: "XPeng", LI: "Li Auto", STLA: "Stellantis", TM: "Toyota",
+  WFC: "Wells Fargo", MS: "Morgan Stanley", C: "Citigroup", SCHW: "Schwab", AXP: "American Express",
+  BX: "Blackstone", KKR: "KKR", COF: "Capital One", USB: "US Bancorp", PNC: "PNC",
+  COP: "ConocoPhillips", SLB: "Schlumberger", OXY: "Occidental", BP: "BP", SHEL: "Shell",
+  LMT: "Lockheed", RTX: "RTX", NOC: "Northrop", MMM: "3M", UPS: "UPS", FDX: "FedEx",
+  DAL: "Delta", UAL: "United", AAL: "American Airlines",
+  LLY: "Eli Lilly", UNH: "UnitedHealth", JNJ: "J&J", PFE: "Pfizer", MRK: "Merck",
+  ABBV: "AbbVie", TMO: "Thermo Fisher", DHR: "Danaher", AMGN: "Amgen", GILD: "Gilead",
+  MRNA: "Moderna", BNTX: "BioNTech", REGN: "Regeneron", VRTX: "Vertex", ISRG: "Intuitive Surgical", BMY: "Bristol-Myers",
+  SPY: "S&P 500 ETF", QQQ: "Nasdaq 100 ETF", DIA: "Dow ETF", IWM: "Russell 2000", VOO: "Vanguard 500",
+  XLK: "Tech Sector", XLF: "Financials", XLE: "Energy", SMH: "Semiconductors", ARKK: "ARK Innovation",
+  GLD: "Gold", SLV: "Silver", TLT: "20Y Treasuries", VIX: "Volatility", EEM: "Emerging Mkts", EFA: "Developed Intl",
 };
 
 export const getAllStocks = createServerFn({ method: "GET" }).handler(async () => {
