@@ -11,15 +11,32 @@ import { assertAiBudget } from "./ai-rate-limit.server";
 const DS = "https://api.dexscreener.com";
 const GT = "https://api.geckoterminal.com/api/v2";
 
-// ---- Cache (avoid hammering free endpoints) ----
+// ---- Cache (avoid hammering free endpoints) with stale-on-error + inflight dedup ----
 type CacheEntry = { at: number; value: unknown };
 const CACHE = new Map<string, CacheEntry>();
+const INFLIGHT = new Map<string, Promise<unknown>>();
+const STALE_MAX_MS = 10 * 60_000; // serve stale up to 10min on upstream failure
+
 async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   const hit = CACHE.get(key);
   if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
-  const v = await fn();
-  CACHE.set(key, { at: Date.now(), value: v });
-  return v;
+  const pending = INFLIGHT.get(key);
+  if (pending) return pending as Promise<T>;
+  const p = (async () => {
+    try {
+      const v = await fn();
+      CACHE.set(key, { at: Date.now(), value: v });
+      return v;
+    } catch (e) {
+      // Serve stale value if we have one within STALE_MAX_MS, else rethrow.
+      if (hit && Date.now() - hit.at < STALE_MAX_MS) return hit.value as T;
+      throw e;
+    } finally {
+      INFLIGHT.delete(key);
+    }
+  })();
+  INFLIGHT.set(key, p);
+  return p;
 }
 
 async function jget(url: string, ttlMs = 15_000): Promise<any> {
@@ -28,6 +45,7 @@ async function jget(url: string, ttlMs = 15_000): Promise<any> {
     if (!res.ok) throw new Error(`${url} ${res.status}`);
     return res.json();
   });
+
 }
 
 // DexScreener chainId → GeckoTerminal network slug
