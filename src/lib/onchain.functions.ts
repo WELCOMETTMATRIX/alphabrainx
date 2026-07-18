@@ -11,15 +11,32 @@ import { assertAiBudget } from "./ai-rate-limit.server";
 const DS = "https://api.dexscreener.com";
 const GT = "https://api.geckoterminal.com/api/v2";
 
-// ---- Cache (avoid hammering free endpoints) ----
+// ---- Cache (avoid hammering free endpoints) with stale-on-error + inflight dedup ----
 type CacheEntry = { at: number; value: unknown };
 const CACHE = new Map<string, CacheEntry>();
+const INFLIGHT = new Map<string, Promise<unknown>>();
+const STALE_MAX_MS = 10 * 60_000; // serve stale up to 10min on upstream failure
+
 async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   const hit = CACHE.get(key);
   if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
-  const v = await fn();
-  CACHE.set(key, { at: Date.now(), value: v });
-  return v;
+  const pending = INFLIGHT.get(key);
+  if (pending) return pending as Promise<T>;
+  const p = (async () => {
+    try {
+      const v = await fn();
+      CACHE.set(key, { at: Date.now(), value: v });
+      return v;
+    } catch (e) {
+      // Serve stale value if we have one within STALE_MAX_MS, else rethrow.
+      if (hit && Date.now() - hit.at < STALE_MAX_MS) return hit.value as T;
+      throw e;
+    } finally {
+      INFLIGHT.delete(key);
+    }
+  })();
+  INFLIGHT.set(key, p);
+  return p;
 }
 
 async function jget(url: string, ttlMs = 15_000): Promise<any> {
@@ -28,6 +45,7 @@ async function jget(url: string, ttlMs = 15_000): Promise<any> {
     if (!res.ok) throw new Error(`${url} ${res.status}`);
     return res.json();
   });
+
 }
 
 // DexScreener chainId → GeckoTerminal network slug
@@ -145,25 +163,12 @@ export const getOnchainToken = createServerFn({ method: "GET" })
     };
   });
 
-// ---- Trending (DexScreener boosts) ----
-export const getOnchainTrending = createServerFn({ method: "GET" }).handler(async () => {
-  const boosts = await jget(`${DS}/token-boosts/latest/v1`, 60_000).catch(() => [] as any[]);
-  const list = (Array.isArray(boosts) ? boosts : []).slice(0, 24) as Array<{ chainId: string; tokenAddress: string; icon?: string; description?: string; url?: string }>;
-  const results = await Promise.all(list.map(async (b) => {
-    try {
-      const r = await jget(`${DS}/latest/dex/tokens/${b.tokenAddress}`, 30_000);
-      const pairs = ((r?.pairs ?? []) as DsPair[]).filter((p) => p.chainId === b.chainId);
-      const best = pickBestPair(pairs);
-      return best ? { ...pairToToken(best), icon: b.icon ?? best.info?.imageUrl } : null;
-    } catch { return null; }
-  }));
-  return results.filter(Boolean) as TokenLite[];
-});
-
-// ---- New token profiles (latest listings) ----
-export const getOnchainNew = createServerFn({ method: "GET" }).handler(async () => {
-  const list = await jget(`${DS}/token-profiles/latest/v1`, 60_000).catch(() => [] as any[]);
-  const arr = (Array.isArray(list) ? list : []).slice(0, 24) as Array<{ chainId: string; tokenAddress: string; icon?: string; description?: string; url?: string }>;
+// Expand a raw list of {chainId, tokenAddress, icon?, description?} entries into hydrated tokens.
+async function hydrateOnchainList(
+  raw: Array<{ chainId: string; tokenAddress: string; icon?: string; description?: string }>,
+  limit: number,
+): Promise<(TokenLite & { description?: string })[]> {
+  const arr = raw.slice(0, limit);
   const results = await Promise.all(arr.map(async (b) => {
     try {
       const r = await jget(`${DS}/latest/dex/tokens/${b.tokenAddress}`, 30_000);
@@ -173,7 +178,45 @@ export const getOnchainNew = createServerFn({ method: "GET" }).handler(async () 
     } catch { return null; }
   }));
   return results.filter(Boolean) as (TokenLite & { description?: string })[];
+}
+
+// ---- Trending (DexScreener boosts, with fallback to top-boosts + new profiles) ----
+export const getOnchainTrending = createServerFn({ method: "GET" }).handler(async () => {
+  const sources: Array<Promise<any[]>> = [
+    jget(`${DS}/token-boosts/latest/v1`, 60_000).catch(() => []),
+    jget(`${DS}/token-boosts/top/v1`, 60_000).catch(() => []),
+  ];
+  const [latest, top] = await Promise.all(sources);
+  const seen = new Set<string>();
+  const merged: any[] = [];
+  for (const src of [latest, top]) {
+    for (const b of Array.isArray(src) ? src : []) {
+      const k = `${b.chainId}:${b.tokenAddress}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      merged.push(b);
+    }
+  }
+  let out = await hydrateOnchainList(merged, 28);
+  if (!out.length) {
+    // Absolute fallback: try new-profile listings so the tab is never empty.
+    const profiles = await jget(`${DS}/token-profiles/latest/v1`, 60_000).catch(() => [] as any[]);
+    out = await hydrateOnchainList(Array.isArray(profiles) ? profiles : [], 28);
+  }
+  return out as TokenLite[];
 });
+
+// ---- New token profiles (latest listings, with fallback to boosts) ----
+export const getOnchainNew = createServerFn({ method: "GET" }).handler(async () => {
+  const list = await jget(`${DS}/token-profiles/latest/v1`, 60_000).catch(() => [] as any[]);
+  let out = await hydrateOnchainList(Array.isArray(list) ? list : [], 28);
+  if (!out.length) {
+    const boosts = await jget(`${DS}/token-boosts/latest/v1`, 60_000).catch(() => [] as any[]);
+    out = await hydrateOnchainList(Array.isArray(boosts) ? boosts : [], 28);
+  }
+  return out as (TokenLite & { description?: string })[];
+});
+
 
 // ---- OHLCV candles for a pool ----
 export const getOnchainCandles = createServerFn({ method: "GET" })

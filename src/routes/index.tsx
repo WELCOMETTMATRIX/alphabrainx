@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, keepPreviousData } from "@tanstack/react-query";
 import { createChart, CandlestickSeries, LineSeries, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import {
   Activity, Bell, BellRing, Brain, Copy, Download, ExternalLink, Flame, GitCompareArrows, LayoutGrid,
@@ -1264,16 +1264,37 @@ function OnchainExplorer() {
   useEffect(() => { const t = setTimeout(() => setDq(query.trim()), 350); return () => clearTimeout(t); }, [query]);
   const [selected, setSelected] = useState<OnchainTok | null>(null);
 
-  const trending = useQuery({ queryKey: ["onchain-trending"], queryFn: () => getOnchainTrending(), refetchInterval: 60_000, enabled: mode === "trending" });
-  const newTokens = useQuery({ queryKey: ["onchain-new"], queryFn: () => getOnchainNew(), refetchInterval: 60_000, enabled: mode === "new" });
+  const trending = useQuery({
+    queryKey: ["onchain-trending"],
+    queryFn: () => getOnchainTrending(),
+    refetchInterval: 60_000,
+    staleTime: 45_000,
+    retry: 3,
+    retryDelay: (i) => Math.min(1000 * 2 ** i, 8000),
+    placeholderData: keepPreviousData,
+  });
+  const newTokens = useQuery({
+    queryKey: ["onchain-new"],
+    queryFn: () => getOnchainNew(),
+    refetchInterval: 60_000,
+    staleTime: 45_000,
+    retry: 3,
+    retryDelay: (i) => Math.min(1000 * 2 ** i, 8000),
+    placeholderData: keepPreviousData,
+  });
   const searchQ = useQuery({
     queryKey: ["onchain-search", dq],
     queryFn: () => searchOnchain({ data: { query: dq } }),
     enabled: mode === "search" && dq.length >= 2,
+    staleTime: 30_000,
+    retry: 2,
+    placeholderData: keepPreviousData,
   });
 
-  const list: OnchainTok[] = mode === "trending" ? (trending.data ?? []) : mode === "new" ? (newTokens.data ?? []) : (searchQ.data ?? []);
-  const loading = mode === "trending" ? trending.isLoading : mode === "new" ? newTokens.isLoading : searchQ.isLoading;
+  const active = mode === "trending" ? trending : mode === "new" ? newTokens : searchQ;
+  const list: OnchainTok[] = (active.data as OnchainTok[] | undefined) ?? [];
+  const loading = active.isLoading || active.isFetching;
+  const errored = !!active.error;
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -1297,12 +1318,21 @@ function OnchainExplorer() {
         )}
         <div className="text-[9px] font-mono text-slate-500 flex items-center gap-1">
           <Link2 className="h-2.5 w-2.5" /> DexScreener + GeckoTerminal · Cronos · ETH · SOL · BSC · Base · Arbitrum · Polygon · +30 more
+          {loading && list.length > 0 && <Loader2 className="h-2.5 w-2.5 animate-spin ml-auto" />}
         </div>
       </div>
       {loading && !list.length ? (
         <div className="p-4 text-[11px] text-slate-500 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Scanning onchain…</div>
       ) : !list.length ? (
-        <div className="p-4 text-[11px] text-slate-500">{mode === "search" ? "Type at least 2 characters." : "No tokens right now."}</div>
+        <div className="p-4 text-[11px] text-slate-500 space-y-2">
+          <div>{mode === "search" ? "Type at least 2 characters." : errored ? "Upstream is rate-limited. Retrying…" : "No tokens right now."}</div>
+          {mode !== "search" && (
+            <button onClick={() => active.refetch()} className="tap px-2 py-1 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 text-[10px]">
+              Retry now
+            </button>
+          )}
+        </div>
+
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto">
           {list.map((t) => {
