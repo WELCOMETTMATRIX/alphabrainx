@@ -317,7 +317,8 @@ function Dashboard() {
         {mobileTab === "ai" && (
           <AIPanel text={aiText} loading={aiMut.isPending} error={aiMut.error as Error | null}
             onRun={() => aiMut.mutate(undefined)} question={question} setQuestion={setQuestion}
-            onAsk={() => aiMut.mutate(question)} symbol={selected.symbol} />
+            onAsk={() => aiMut.mutate(question)} symbol={selected.symbol}
+            onBacktest={() => setBacktestOpen(true)} />
         )}
       </div>
 
