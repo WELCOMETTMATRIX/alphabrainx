@@ -178,7 +178,7 @@ function Dashboard() {
       if (changed) setAlerts(next);
     };
     check();
-    const id = setInterval(check, 30_000);
+    const id = setInterval(check, 5_000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alerts, quoteMap]);
