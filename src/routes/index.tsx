@@ -100,7 +100,8 @@ function Dashboard() {
       queryFn: () => w.kind === "stock"
         ? getStockQuote({ data: { symbol: w.symbol } })
         : getCryptoQuote({ data: { symbol: w.symbol } }),
-      refetchInterval: 15_000,
+      refetchInterval: 8_000,
+      refetchIntervalInBackground: true,
     })),
   });
 
