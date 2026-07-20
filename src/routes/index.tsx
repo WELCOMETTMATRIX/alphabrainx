@@ -81,6 +81,7 @@ function Dashboard() {
   const [panels, setPanels] = useLocal<{ chart: boolean; scan: boolean; ai: boolean }>("ab.panels", { chart: true, scan: true, ai: true });
   const [chartPop, setChartPop] = useState(false);
   const [aiPop, setAiPop] = useState(false);
+  const [backtestOpen, setBacktestOpen] = useState(false);
   const [theme, setTheme] = useLocal<"solaris" | "nebula">("ab.theme", "solaris");
   useEffect(() => {
     if (typeof document !== "undefined") document.documentElement.setAttribute("data-theme", theme);
