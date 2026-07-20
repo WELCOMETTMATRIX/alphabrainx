@@ -472,30 +472,10 @@ export const aiAnalyze = createServerFn({ method: "POST" })
     const question = data.question ? clampPrompt(data.question, 500) : undefined;
 
 
-    // Compute simple technicals for the focus symbol
+    // Compute rich technicals for the focus symbol
     let techBlock = "";
     if (data.candles && data.candles.length > 5) {
-      const closes = data.candles.map((c) => c.close);
-      const sma = (n: number) => {
-        const s = closes.slice(-n);
-        return s.reduce((a, b) => a + b, 0) / s.length;
-      };
-      const sma7 = sma(Math.min(7, closes.length));
-      const sma25 = sma(Math.min(25, closes.length));
-      const last = closes[closes.length - 1];
-      const first = closes[0];
-      const pctRange = ((last - first) / first) * 100;
-      const highest = Math.max(...closes);
-      const lowest = Math.min(...closes);
-      let ups = 0;
-      for (let i = 1; i < closes.length; i++) if (closes[i] > closes[i - 1]) ups++;
-      const upRatio = ups / (closes.length - 1);
-      techBlock = `\nTechnicals for ${data.symbol}:
-- Last: ${last.toFixed(4)}
-- Period range: ${pctRange.toFixed(2)}%
-- SMA7: ${sma7.toFixed(4)}, SMA25: ${sma25.toFixed(4)} (${sma7 > sma25 ? "bullish cross" : "bearish cross"})
-- Period high/low: ${highest.toFixed(4)} / ${lowest.toFixed(4)}
-- Up-bar ratio: ${(upRatio * 100).toFixed(0)}%`;
+      techBlock = "\n" + computeTechBlock(data.symbol ?? "asset", data.candles);
     }
 
     const assetList = data.assets
@@ -511,8 +491,14 @@ ${techBlock}
 
 ${question ? `User question: ${question}\n\nAnswer directly and specifically, citing prices, %, and structural levels where relevant.` : `Deliver a full brief for **${data.symbol}** and the watchlist:
 
+## ⚡ TL;DR
+Exactly 3 bullets — the bias, the level to watch, and the trigger. Punchy, decisive.
+
 ## 🧭 Regime Read
 One paragraph: risk-on / risk-off / rotation, and what it means right now.
+
+## 📊 Technical Read — ${data.symbol}
+Interpret the RSI, MACD, ATR, moving-average stack, and structure block explicitly. Cite the actual numbers.
 
 ## 🚀 Top Movers & Why
 Rank 3–5 with a one-line thesis each.
@@ -521,7 +507,7 @@ Rank 3–5 with a one-line thesis each.
 - Current structure (uptrend / downtrend / range / accumulation)
 - Key support & resistance levels with exact prices
 - Next probable price path (short-term 1–5 days, mid-term 2–4 weeks) with % targets
-- Probability read (base case, bull case, bear case)
+- Probability read (base %, bull %, bear %) that sums to 100
 
 ## ⚔️ Strongest vs Weakest
 Comparative read across the watchlist — who leads, who lags, and why.
@@ -538,3 +524,220 @@ Concrete catalysts, not vague warnings.`}`;
     });
     return { analysis: text };
   });
+
+// ---- Indicator helpers ----
+function sma(arr: number[], n: number) {
+  if (arr.length < n) return arr.reduce((a, b) => a + b, 0) / arr.length;
+  const s = arr.slice(-n);
+  return s.reduce((a, b) => a + b, 0) / s.length;
+}
+function emaSeries(arr: number[], n: number): number[] {
+  if (!arr.length) return [];
+  const k = 2 / (n + 1);
+  const out: number[] = [arr[0]];
+  for (let i = 1; i < arr.length; i++) out.push(arr[i] * k + out[i - 1] * (1 - k));
+  return out;
+}
+function rsi(closes: number[], n = 14): number {
+  if (closes.length < n + 1) return 50;
+  let gains = 0, losses = 0;
+  for (let i = closes.length - n; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d >= 0) gains += d; else losses -= d;
+  }
+  const rs = losses === 0 ? 100 : gains / losses;
+  return 100 - 100 / (1 + rs);
+}
+function macd(closes: number[]) {
+  const ema12 = emaSeries(closes, 12);
+  const ema26 = emaSeries(closes, 26);
+  const line = closes.map((_, i) => ema12[i] - ema26[i]);
+  const signal = emaSeries(line, 9);
+  const hist = line.map((v, i) => v - signal[i]);
+  const n = closes.length - 1;
+  return { line: line[n], signal: signal[n], hist: hist[n], prevHist: hist[n - 1] ?? 0 };
+}
+function atr(candles: Candle[], n = 14): number {
+  if (candles.length < 2) return 0;
+  const trs: number[] = [];
+  for (let i = 1; i < candles.length; i++) {
+    const c = candles[i], p = candles[i - 1];
+    trs.push(Math.max(c.high - c.low, Math.abs(c.high - p.close), Math.abs(c.low - p.close)));
+  }
+  const s = trs.slice(-n);
+  return s.reduce((a, b) => a + b, 0) / s.length;
+}
+function computeTechBlock(symbol: string, candles: Candle[]): string {
+  const closes = candles.map((c) => c.close);
+  const vols = candles.map((c) => c.volume);
+  const last = closes[closes.length - 1];
+  const first = closes[0];
+  const pctRange = ((last - first) / first) * 100;
+  const s7 = sma(closes, 7), s25 = sma(closes, 25), s50 = sma(closes, Math.min(50, closes.length));
+  const highest = Math.max(...closes), lowest = Math.min(...closes);
+  const r = rsi(closes, 14);
+  const m = macd(closes);
+  const a = atr(candles, 14);
+  const volAvg = vols.slice(-20).reduce((x, y) => x + y, 0) / Math.min(20, vols.length);
+  const volLast = vols[vols.length - 1];
+  const volMult = volAvg ? volLast / volAvg : 1;
+  // Structure: last 20 candles higher-highs / higher-lows
+  const seg = candles.slice(-20);
+  let hh = 0, hl = 0, lh = 0, ll = 0;
+  for (let i = 1; i < seg.length; i++) {
+    if (seg[i].high > seg[i - 1].high) hh++; else lh++;
+    if (seg[i].low > seg[i - 1].low) hl++; else ll++;
+  }
+  const structure = hh + hl > lh + ll ? "higher highs / higher lows (uptrend)"
+    : lh + ll > hh + hl ? "lower highs / lower lows (downtrend)" : "range / choppy";
+  const macdBias = m.line > m.signal && m.hist > m.prevHist ? "bullish + expanding"
+    : m.line > m.signal ? "bullish"
+    : m.hist < m.prevHist ? "bearish + expanding" : "bearish";
+  const rsiTag = r >= 70 ? "overbought" : r <= 30 ? "oversold" : r >= 55 ? "bullish" : r <= 45 ? "bearish" : "neutral";
+  return `Technicals for ${symbol} (${candles.length} bars):
+- Last: ${last.toFixed(6)}  |  Period range: ${pctRange.toFixed(2)}%  |  ATR14: ${a.toFixed(6)} (${((a / last) * 100).toFixed(2)}% of price)
+- SMA stack: 7=${s7.toFixed(4)}, 25=${s25.toFixed(4)}, 50=${s50.toFixed(4)} → ${s7 > s25 && s25 > s50 ? "aligned bullish" : s7 < s25 && s25 < s50 ? "aligned bearish" : "mixed"}
+- RSI14: ${r.toFixed(1)} (${rsiTag})  |  MACD: line=${m.line.toFixed(6)} signal=${m.signal.toFixed(6)} hist=${m.hist.toFixed(6)} → ${macdBias}
+- Structure (last 20): ${structure}  |  Vol vs avg20: ${volMult.toFixed(2)}x
+- Period high/low: ${highest.toFixed(6)} / ${lowest.toFixed(6)}`;
+}
+
+// ============================================================================
+// BACKTEST SANDBOX — replay AI-style signals on historical candles
+// ============================================================================
+export const runBacktest = createServerFn({ method: "POST" })
+  .inputValidator((d: {
+    candles: Candle[];
+    symbol: string;
+    strategy?: "sma_cross" | "rsi_reversion" | "macd_trend";
+    fast?: number; slow?: number;
+    aiCommentary?: boolean;
+  }) => d)
+  .handler(async ({ data }) => {
+    const strat = data.strategy ?? "sma_cross";
+    const fast = data.fast ?? 7;
+    const slow = data.slow ?? 25;
+    const candles = data.candles ?? [];
+    if (candles.length < Math.max(slow, 30)) {
+      return { error: "Not enough historical data for a meaningful backtest (need 30+ bars)." };
+    }
+    const closes = candles.map((c) => c.close);
+    // Precompute indicators
+    const fastEma = emaSeries(closes, fast);
+    const slowEma = emaSeries(closes, slow);
+    const macdSeries = (() => {
+      const e12 = emaSeries(closes, 12); const e26 = emaSeries(closes, 26);
+      const line = closes.map((_, i) => e12[i] - e26[i]);
+      const sig = emaSeries(line, 9);
+      return { line, sig };
+    })();
+
+    type Trade = { entryIdx: number; exitIdx?: number; entry: number; exit?: number; pct?: number; entryTime: number; exitTime?: number };
+    const trades: Trade[] = [];
+    let inPos = false, cur: Trade | null = null;
+
+    const signalLong = (i: number): boolean => {
+      if (i < Math.max(slow, 26) + 1) return false;
+      if (strat === "sma_cross") return fastEma[i] > slowEma[i] && fastEma[i - 1] <= slowEma[i - 1];
+      if (strat === "macd_trend") return macdSeries.line[i] > macdSeries.sig[i] && macdSeries.line[i - 1] <= macdSeries.sig[i - 1];
+      // rsi_reversion: RSI crosses back above 30
+      const r0 = rsi(closes.slice(0, i), 14);
+      const r1 = rsi(closes.slice(0, i + 1), 14);
+      return r0 < 30 && r1 >= 30;
+    };
+    const signalExit = (i: number): boolean => {
+      if (strat === "sma_cross") return fastEma[i] < slowEma[i] && fastEma[i - 1] >= slowEma[i - 1];
+      if (strat === "macd_trend") return macdSeries.line[i] < macdSeries.sig[i] && macdSeries.line[i - 1] >= macdSeries.sig[i - 1];
+      const r1 = rsi(closes.slice(0, i + 1), 14);
+      return r1 >= 70;
+    };
+
+    for (let i = 1; i < candles.length; i++) {
+      const c = candles[i];
+      if (!inPos && signalLong(i)) {
+        cur = { entryIdx: i, entry: c.close, entryTime: c.time };
+        inPos = true;
+      } else if (inPos && cur && signalExit(i)) {
+        cur.exitIdx = i; cur.exit = c.close; cur.exitTime = c.time;
+        cur.pct = ((c.close - cur.entry) / cur.entry) * 100;
+        trades.push(cur); cur = null; inPos = false;
+      }
+    }
+    // Close open position at last bar
+    if (inPos && cur) {
+      const last = candles[candles.length - 1];
+      cur.exitIdx = candles.length - 1; cur.exit = last.close; cur.exitTime = last.time;
+      cur.pct = ((last.close - cur.entry) / cur.entry) * 100;
+      trades.push(cur);
+    }
+
+    // Equity curve (compound)
+    let equity = 1;
+    const equityCurve: Array<{ time: number; equity: number }> = [{ time: candles[0].time, equity: 1 }];
+    for (const t of trades) {
+      equity *= 1 + (t.pct ?? 0) / 100;
+      equityCurve.push({ time: t.exitTime ?? 0, equity });
+    }
+    // Max drawdown
+    let peak = 1, maxDd = 0;
+    for (const p of equityCurve) {
+      if (p.equity > peak) peak = p.equity;
+      const dd = (peak - p.equity) / peak;
+      if (dd > maxDd) maxDd = dd;
+    }
+    const wins = trades.filter((t) => (t.pct ?? 0) > 0).length;
+    const winRate = trades.length ? (wins / trades.length) * 100 : 0;
+    const avgWin = trades.filter((t) => (t.pct ?? 0) > 0).reduce((a, b) => a + (b.pct ?? 0), 0) / (wins || 1);
+    const avgLoss = trades.filter((t) => (t.pct ?? 0) <= 0).reduce((a, b) => a + (b.pct ?? 0), 0) / ((trades.length - wins) || 1);
+    const totalReturn = (equity - 1) * 100;
+    // Buy & hold baseline
+    const bh = ((closes[closes.length - 1] - closes[0]) / closes[0]) * 100;
+    // Simple sharpe over trade returns
+    const rets = trades.map((t) => (t.pct ?? 0) / 100);
+    const mean = rets.reduce((a, b) => a + b, 0) / (rets.length || 1);
+    const variance = rets.reduce((a, b) => a + (b - mean) ** 2, 0) / (rets.length || 1);
+    const sharpe = variance > 0 ? (mean / Math.sqrt(variance)) * Math.sqrt(Math.min(rets.length, 252)) : 0;
+
+    const stats = {
+      strategy: strat, fast, slow,
+      trades: trades.length,
+      winRate: +winRate.toFixed(1),
+      totalReturn: +totalReturn.toFixed(2),
+      buyHoldReturn: +bh.toFixed(2),
+      alpha: +(totalReturn - bh).toFixed(2),
+      maxDrawdown: +(maxDd * 100).toFixed(2),
+      avgWin: +avgWin.toFixed(2),
+      avgLoss: +avgLoss.toFixed(2),
+      sharpe: +sharpe.toFixed(2),
+    };
+
+    let commentary = "";
+    if (data.aiCommentary) {
+      assertAiBudget("backtest");
+      const key = process.env.LOVABLE_API_KEY;
+      if (key) {
+        const gateway = createLovableAiGatewayProvider(key);
+        const prompt = `You are Alpha Brain reviewing a backtest for **${data.symbol}**.
+Strategy: ${strat} (fast=${fast}, slow=${slow}) over ${candles.length} bars.
+Results: ${JSON.stringify(stats)}
+Last 5 trades: ${JSON.stringify(trades.slice(-5).map((t) => ({ pct: t.pct?.toFixed(2), entry: t.entry, exit: t.exit })))}
+
+Write a **short markdown review** (max 180 words):
+## Verdict
+One-line grade: A/B/C/D with why.
+## Edge Check
+Did it beat buy & hold on risk-adjusted basis? Cite alpha + sharpe + max DD.
+## Regime Fit
+When does this strategy shine vs fail on this asset?
+## Live-Trade Recommendation
+Would you actually deploy this? What parameter or filter would you tune first?`;
+        try {
+          const { text } = await generateText({ model: gateway("google/gemini-3-flash-preview"), prompt });
+          commentary = text;
+        } catch (e) { commentary = `_AI review unavailable: ${(e as Error).message}_`; }
+      }
+    }
+
+    return { stats, trades, equityCurve, commentary };
+  });
+
