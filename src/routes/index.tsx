@@ -15,6 +15,7 @@ import {
   getMarketPulse,
   getStockCandles, getStockQuote,
   getTopCryptoMovers, getTrendingStocks,
+  runBacktest,
 } from "@/lib/market.functions";
 import {
   aiOnchainAnalyze, getOnchainCandles, getOnchainNew, getOnchainToken,
