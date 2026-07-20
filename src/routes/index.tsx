@@ -15,6 +15,7 @@ import {
   getMarketPulse,
   getStockCandles, getStockQuote,
   getTopCryptoMovers, getTrendingStocks,
+  runBacktest,
 } from "@/lib/market.functions";
 import {
   aiOnchainAnalyze, getOnchainCandles, getOnchainNew, getOnchainToken,
@@ -80,6 +81,7 @@ function Dashboard() {
   const [panels, setPanels] = useLocal<{ chart: boolean; scan: boolean; ai: boolean }>("ab.panels", { chart: true, scan: true, ai: true });
   const [chartPop, setChartPop] = useState(false);
   const [aiPop, setAiPop] = useState(false);
+  const [backtestOpen, setBacktestOpen] = useState(false);
   const [theme, setTheme] = useLocal<"solaris" | "nebula">("ab.theme", "solaris");
   useEffect(() => {
     if (typeof document !== "undefined") document.documentElement.setAttribute("data-theme", theme);
@@ -100,7 +102,8 @@ function Dashboard() {
       queryFn: () => w.kind === "stock"
         ? getStockQuote({ data: { symbol: w.symbol } })
         : getCryptoQuote({ data: { symbol: w.symbol } }),
-      refetchInterval: 15_000,
+      refetchInterval: 8_000,
+      refetchIntervalInBackground: true,
     })),
   });
 
@@ -177,7 +180,7 @@ function Dashboard() {
       if (changed) setAlerts(next);
     };
     check();
-    const id = setInterval(check, 30_000);
+    const id = setInterval(check, 5_000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alerts, quoteMap]);
@@ -242,7 +245,8 @@ function Dashboard() {
             <PanelShell onClose={() => setPanels({ ...panels, ai: false })} onPop={() => setAiPop(true)}>
               <AIPanel text={aiText} loading={aiMut.isPending} error={aiMut.error as Error | null}
                 onRun={() => aiMut.mutate(undefined)} question={question} setQuestion={setQuestion}
-                onAsk={() => aiMut.mutate(question)} symbol={selected.symbol} />
+                onAsk={() => aiMut.mutate(question)} symbol={selected.symbol}
+                onBacktest={() => setBacktestOpen(true)} />
             </PanelShell>
           )}
           <AlertsPanel alerts={alerts} setAlerts={setAlerts} selected={selected}
@@ -268,7 +272,15 @@ function Dashboard() {
           <div className="p-4">
             <AIPanel text={aiText} loading={aiMut.isPending} error={aiMut.error as Error | null}
               onRun={() => aiMut.mutate(undefined)} question={question} setQuestion={setQuestion}
-              onAsk={() => aiMut.mutate(question)} symbol={selected.symbol} />
+              onAsk={() => aiMut.mutate(question)} symbol={selected.symbol}
+              onBacktest={() => setBacktestOpen(true)} />
+          </div>
+        </DraggableModal>
+      )}
+      {backtestOpen && (
+        <DraggableModal onClose={() => setBacktestOpen(false)} title={`Backtest Sandbox · ${clean(selected.symbol)}`} width={720}>
+          <div className="p-4">
+            <BacktestPanel symbol={selected.symbol} candles={candlesQuery.data ?? []} />
           </div>
         </DraggableModal>
       )}
@@ -305,7 +317,8 @@ function Dashboard() {
         {mobileTab === "ai" && (
           <AIPanel text={aiText} loading={aiMut.isPending} error={aiMut.error as Error | null}
             onRun={() => aiMut.mutate(undefined)} question={question} setQuestion={setQuestion}
-            onAsk={() => aiMut.mutate(question)} symbol={selected.symbol} />
+            onAsk={() => aiMut.mutate(question)} symbol={selected.symbol}
+            onBacktest={() => setBacktestOpen(true)} />
         )}
       </div>
 
@@ -865,9 +878,10 @@ function ScanPanel({ data, loading, error, onRun, onPick, scope, setScope }: {
 // ============================================================================
 // AI PANEL
 // ============================================================================
-function AIPanel({ text, loading, error, onRun, question, setQuestion, onAsk, symbol }: {
+function AIPanel({ text, loading, error, onRun, question, setQuestion, onAsk, symbol, onBacktest }: {
   text: string; loading: boolean; error: Error | null; onRun: () => void;
   question: string; setQuestion: (s: string) => void; onAsk: () => void; symbol: string;
+  onBacktest?: () => void;
 }) {
   return (
     <div className="glass rounded-2xl p-4 flex flex-col min-h-[380px] lg:min-h-[420px] relative overflow-hidden">
@@ -880,19 +894,28 @@ function AIPanel({ text, loading, error, onRun, question, setQuestion, onAsk, sy
           </h2>
           <p className="text-[11px] text-slate-400 mt-0.5 font-mono">Focus: {clean(symbol)}</p>
         </div>
-        <button onClick={onRun} disabled={loading}
-          className="text-xs px-3 py-1.5 rounded-lg font-bold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5 shrink-0"
-          style={{ background: "var(--grad-neon)", color: "var(--primary-foreground)" }}>
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          {loading ? "Thinking" : "Analyze"}
-        </button>
+        <div className="flex gap-1.5 shrink-0">
+          {onBacktest && (
+            <button onClick={onBacktest}
+              className="tap text-xs px-2.5 py-1.5 rounded-lg font-bold glass-strong hover:bg-white/15 flex items-center gap-1"
+              title="Replay signals on history">
+              <Activity className="h-3.5 w-3.5" /> Backtest
+            </button>
+          )}
+          <button onClick={onRun} disabled={loading}
+            className="tap text-xs px-3 py-1.5 rounded-lg font-bold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
+            style={{ background: "var(--grad-neon)", color: "var(--primary-foreground)" }}>
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {loading ? "Thinking" : "Analyze"}
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-auto text-sm rounded-xl glass p-3 whitespace-pre-wrap leading-relaxed relative">
         {loading && (<div className="absolute inset-x-0 top-0 h-px animate-scan" style={{ background: "linear-gradient(90deg, transparent, var(--primary), transparent)" }} />)}
         {error ? <span className="text-rose-400">Error: {error.message}</span>
           : text || <span className="text-slate-400 text-xs">
             Compare watchlist assets · Detect uptrend paths · Ask any market question.<br /><br />
-            Tap <strong>Analyze</strong> for a report on {clean(symbol)}, or type below.
+            Tap <strong>Analyze</strong> for a report on {clean(symbol)}, or <strong>Backtest</strong> to replay signals on history.
           </span>}
       </div>
       <div className="mt-3 flex gap-1.5">
@@ -903,6 +926,103 @@ function AIPanel({ text, loading, error, onRun, question, setQuestion, onAsk, sy
         <button onClick={onAsk} disabled={loading || !question}
           className="rounded-lg glass-strong text-xs px-4 py-2 font-bold hover:bg-white/15 disabled:opacity-50 min-h-[44px] min-w-[44px]">Ask</button>
       </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// BACKTEST SANDBOX PANEL — replay signals on historical candles
+// ============================================================================
+function BacktestPanel({ symbol, candles }: { symbol: string; candles: { time: number; open: number; high: number; low: number; close: number; volume: number }[] }) {
+  const [strategy, setStrategy] = useState<"sma_cross" | "rsi_reversion" | "macd_trend">("sma_cross");
+  const [fast, setFast] = useState(7);
+  const [slow, setSlow] = useState(25);
+  const [aiOn, setAiOn] = useState(true);
+  const mut = useMutation({
+    mutationFn: () => runBacktest({ data: { candles, symbol, strategy, fast, slow, aiCommentary: aiOn } }),
+  });
+  const r = mut.data;
+  return (
+    <div className="p-1 text-sm">
+      <div className="flex flex-wrap gap-2 items-end mb-3">
+        <div>
+          <label className="block text-[10px] uppercase tracking-widest text-slate-400 mb-1">Strategy</label>
+          <select value={strategy} onChange={(e) => setStrategy(e.target.value as typeof strategy)}
+            className="glass-strong rounded-lg px-2 py-1.5 text-xs outline-none">
+            <option value="sma_cross">SMA Cross ({fast}/{slow})</option>
+            <option value="macd_trend">MACD Trend</option>
+            <option value="rsi_reversion">RSI Reversion (30/70)</option>
+          </select>
+        </div>
+        {strategy === "sma_cross" && (
+          <>
+            <div>
+              <label className="block text-[10px] uppercase tracking-widest text-slate-400 mb-1">Fast</label>
+              <input type="number" value={fast} min={2} max={50} onChange={(e) => setFast(+e.target.value)}
+                className="glass-strong rounded-lg px-2 py-1.5 text-xs w-16 outline-none" />
+            </div>
+            <div>
+              <label className="block text-[10px] uppercase tracking-widest text-slate-400 mb-1">Slow</label>
+              <input type="number" value={slow} min={5} max={200} onChange={(e) => setSlow(+e.target.value)}
+                className="glass-strong rounded-lg px-2 py-1.5 text-xs w-16 outline-none" />
+            </div>
+          </>
+        )}
+        <label className="flex items-center gap-1.5 text-xs cursor-pointer glass-strong rounded-lg px-2 py-1.5">
+          <input type="checkbox" checked={aiOn} onChange={(e) => setAiOn(e.target.checked)} /> AI review
+        </label>
+        <button onClick={() => mut.mutate()} disabled={mut.isPending || !candles.length}
+          className="tap text-xs px-3 py-2 rounded-lg font-bold ml-auto disabled:opacity-50 flex items-center gap-1.5"
+          style={{ background: "var(--grad-neon)", color: "var(--primary-foreground)" }}>
+          {mut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+          {mut.isPending ? "Running" : "Run backtest"}
+        </button>
+      </div>
+      {mut.error && <div className="text-rose-400 text-xs mb-2">Error: {(mut.error as Error).message}</div>}
+      {r && "error" in r && <div className="text-amber-400 text-xs mb-2">{r.error}</div>}
+      {r && "stats" in r && r.stats && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+            {[
+              ["Total return", `${r.stats.totalReturn >= 0 ? "+" : ""}${r.stats.totalReturn}%`, r.stats.totalReturn >= 0 ? "emerald" : "rose"],
+              ["Buy & hold", `${r.stats.buyHoldReturn >= 0 ? "+" : ""}${r.stats.buyHoldReturn}%`, "slate"],
+              ["Alpha", `${r.stats.alpha >= 0 ? "+" : ""}${r.stats.alpha}%`, r.stats.alpha >= 0 ? "emerald" : "rose"],
+              ["Win rate", `${r.stats.winRate}%`, r.stats.winRate >= 50 ? "emerald" : "amber"],
+              ["Trades", `${r.stats.trades}`, "slate"],
+              ["Avg win", `+${r.stats.avgWin.toFixed(2)}%`, "emerald"],
+              ["Avg loss", `${r.stats.avgLoss.toFixed(2)}%`, "rose"],
+              ["Max drawdown", `-${r.stats.maxDrawdown}%`, "rose"],
+              ["Sharpe", `${r.stats.sharpe}`, r.stats.sharpe >= 1 ? "emerald" : "amber"],
+            ].map(([lbl, val, tone]) => (
+              <div key={lbl as string} className="glass rounded-lg px-2.5 py-2">
+                <div className="text-[9px] uppercase tracking-widest text-slate-400">{lbl}</div>
+                <div className={`text-sm font-bold font-mono text-${tone}-400`}>{val}</div>
+              </div>
+            ))}
+          </div>
+          {r.commentary && (
+            <div className="glass rounded-xl p-3 text-xs whitespace-pre-wrap leading-relaxed">{r.commentary}</div>
+          )}
+          {r.trades.length > 0 && (
+            <details className="mt-3">
+              <summary className="text-[11px] text-slate-400 cursor-pointer">Last {Math.min(r.trades.length, 12)} trades</summary>
+              <div className="mt-2 space-y-1 max-h-48 overflow-auto">
+                {r.trades.slice(-12).reverse().map((t, i) => (
+                  <div key={i} className="flex items-center justify-between glass rounded-lg px-2 py-1 text-[11px] font-mono">
+                    <span className="text-slate-400">{new Date(t.entryTime * 1000).toLocaleDateString()} → {t.exitTime ? new Date(t.exitTime * 1000).toLocaleDateString() : "open"}</span>
+                    <span className={((t.pct ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400") + " font-bold"}>{(t.pct ?? 0) >= 0 ? "+" : ""}{(t.pct ?? 0).toFixed(2)}%</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </>
+      )}
+      {!r && !mut.isPending && (
+        <div className="text-xs text-slate-400 glass rounded-lg p-3">
+          Replay the brain's signal logic against the last {candles.length} bars of <strong>{clean(symbol)}</strong>. See how the strategy actually performed vs. buy &amp; hold before risking a single dollar.
+        </div>
+      )}
     </div>
   );
 }
