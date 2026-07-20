@@ -245,7 +245,8 @@ function Dashboard() {
             <PanelShell onClose={() => setPanels({ ...panels, ai: false })} onPop={() => setAiPop(true)}>
               <AIPanel text={aiText} loading={aiMut.isPending} error={aiMut.error as Error | null}
                 onRun={() => aiMut.mutate(undefined)} question={question} setQuestion={setQuestion}
-                onAsk={() => aiMut.mutate(question)} symbol={selected.symbol} />
+                onAsk={() => aiMut.mutate(question)} symbol={selected.symbol}
+                onBacktest={() => setBacktestOpen(true)} />
             </PanelShell>
           )}
           <AlertsPanel alerts={alerts} setAlerts={setAlerts} selected={selected}
@@ -271,7 +272,15 @@ function Dashboard() {
           <div className="p-4">
             <AIPanel text={aiText} loading={aiMut.isPending} error={aiMut.error as Error | null}
               onRun={() => aiMut.mutate(undefined)} question={question} setQuestion={setQuestion}
-              onAsk={() => aiMut.mutate(question)} symbol={selected.symbol} />
+              onAsk={() => aiMut.mutate(question)} symbol={selected.symbol}
+              onBacktest={() => setBacktestOpen(true)} />
+          </div>
+        </DraggableModal>
+      )}
+      {backtestOpen && (
+        <DraggableModal onClose={() => setBacktestOpen(false)} title={`Backtest Sandbox · ${clean(selected.symbol)}`} width={720}>
+          <div className="p-4">
+            <BacktestPanel symbol={selected.symbol} candles={candlesQuery.data ?? []} />
           </div>
         </DraggableModal>
       )}
