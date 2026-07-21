@@ -359,9 +359,18 @@ function Dashboard() {
         />
       )}
 
-      <footer className="hidden lg:block text-center text-[10px] text-slate-500 py-3 font-mono uppercase tracking-widest">
-        Alpha Brain Pro · Crypto.com Exchange · Finnhub · Lovable AI · Not financial advice
+      <footer className="hidden lg:flex flex-wrap items-center justify-center gap-4 text-[10px] text-slate-500 py-4 font-mono uppercase tracking-widest">
+        <span>Alpha Brain Pro · Not financial advice</span>
+        <span className="text-slate-700">·</span>
+        <a href="/about" className="hover:text-cyan-400">About</a>
+        <a href="/faq" className="hover:text-cyan-400">FAQ</a>
+        <a href="/privacy" className="hover:text-cyan-400">Privacy</a>
+        <a href="/terms" className="hover:text-cyan-400">Terms</a>
+        <a href="/contact" className="hover:text-cyan-400">Contact</a>
+        <a href="/download" className="hover:text-cyan-400">Download for Windows</a>
+        <a href="https://www.producthunt.com/@dogekingmike" target="_blank" rel="noopener" className="hover:text-cyan-400">Product Hunt</a>
       </footer>
+
     </div>
   );
 }

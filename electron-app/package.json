@@ -1,0 +1,14 @@
+{
+  "name": "alpha-brain",
+  "productName": "AlphaBrain",
+  "version": "1.0.0",
+  "description": "Alpha Brain — AI market intelligence terminal",
+  "main": "main.cjs",
+  "author": "DOGEKINGMIKE <xapp431@gmail.com>",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@electron/packager": "^20.0.3",
+    "electron": "^33.4.11"
+  }
+}
