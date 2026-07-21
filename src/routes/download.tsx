@@ -12,7 +12,7 @@ export const Route = createFileRoute("/download")({
   component: DownloadPage,
 });
 
-const WIN_URL = "/downloads/AlphaBrain-Setup-win-x64.zip";
+const WIN_URL = "/__l5e/assets-v1/31064dc2-65b0-4464-a620-64c0b701014a/AlphaBrain-Setup-win-x64.zip";
 
 function DownloadPage() {
   return (
