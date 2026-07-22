@@ -26,7 +26,7 @@ export const Route = createFileRoute("/")({ component: Dashboard });
 
 type Kind = "stock" | "crypto";
 type Watch = { symbol: string; kind: Kind; label?: string };
-type Alert = { id: string; symbol: string; kind: Kind; direction: "above" | "below"; target: number; note?: string; created: number; triggered?: number };
+type Alert = { id: string; symbol: string; kind: Kind; direction: "above" | "below"; target: number; note?: string; created: number; triggered?: number; sound?: boolean; repeat?: boolean; basePrice?: number };
 type MobileTab = "chart" | "browse" | "alerts" | "compare" | "ai";
 
 const DEFAULT_WATCH: Watch[] = [
