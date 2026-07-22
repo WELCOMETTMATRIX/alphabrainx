@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { LegalShell } from "./about";
 import { Download, Monitor, Apple, Smartphone } from "lucide-react";
+import winAsset from "../../public/downloads/AlphaBrain-Setup-win-x64.zip.asset.json";
 
 export const Route = createFileRoute("/download")({
   head: () => ({
@@ -12,7 +13,8 @@ export const Route = createFileRoute("/download")({
   component: DownloadPage,
 });
 
-const WIN_URL = "/__l5e/assets-v1/31064dc2-65b0-4464-a620-64c0b701014a/AlphaBrain-Setup-win-x64.zip";
+const WIN_URL = winAsset.url;
+const WIN_SIZE_MB = (winAsset.size / (1024 * 1024)).toFixed(1);
 
 function DownloadPage() {
   return (
