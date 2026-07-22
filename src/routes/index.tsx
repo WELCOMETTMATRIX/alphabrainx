@@ -295,7 +295,7 @@ function Dashboard() {
             </PanelShell>
           )}
           <AlertsPanel alerts={alerts} setAlerts={setAlerts} selected={selected}
-            currentPrice={quoteMap.get(selected.symbol)?.price} />
+            currentPrice={quoteMap.get(selected.symbol)?.price} quoteMap={quoteMap} />
           <MoversMini crypto={cryptoMoversQuery.data} stocks={stockMoversQuery.data}
             onPickCrypto={(s) => setOpenAsset({ symbol: s, kind: "crypto" })}
             onPickStock={(s) => setOpenAsset({ symbol: s, kind: "stock" })} />
