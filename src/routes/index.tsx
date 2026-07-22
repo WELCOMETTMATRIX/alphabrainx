@@ -162,9 +162,34 @@ function Dashboard() {
   useEffect(() => {
     if (!alerts.length) return;
     if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
-      // Ask lazily on first alert
+  // -------- Alerts polling (fast, background-safe, sound + vibration) --------
+  useEffect(() => {
+    if (!alerts.length) return;
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
       Notification.requestPermission().catch(() => {});
     }
+
+    const beep = (up: boolean) => {
+      try {
+        const AC: typeof AudioContext | undefined = (window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+        if (!AC) return;
+        const ctx = new AC();
+        const now = ctx.currentTime;
+        const notes = up ? [660, 880, 1180] : [520, 380, 260];
+        notes.forEach((f, i) => {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = "sine"; o.frequency.value = f;
+          g.gain.setValueAtTime(0.0001, now + i * 0.11);
+          g.gain.exponentialRampToValueAtTime(0.22, now + i * 0.11 + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.11 + 0.18);
+          o.connect(g).connect(ctx.destination);
+          o.start(now + i * 0.11); o.stop(now + i * 0.11 + 0.2);
+        });
+        setTimeout(() => { try { ctx.close(); } catch { /* noop */ } }, 900);
+      } catch { /* noop */ }
+    };
+
     const check = () => {
       let changed = false;
       const next = alerts.map((a) => {
@@ -174,9 +199,29 @@ function Dashboard() {
         const hit = a.direction === "above" ? q.price >= a.target : q.price <= a.target;
         if (hit) {
           changed = true;
-          const msg = `${clean(a.symbol)} ${a.direction} $${fmt(a.target)} — now $${fmt(q.price)}`;
-          try { if ("Notification" in window && Notification.permission === "granted") new Notification("Alpha Brain alert", { body: msg }); } catch { /* noop */ }
+          const arrow = a.direction === "above" ? "▲" : "▼";
+          const msg = `${arrow} ${clean(a.symbol)} ${a.direction} $${fmt(a.target)} — now $${fmt(q.price)}`;
+          try {
+            if ("Notification" in window && Notification.permission === "granted") {
+              const n = new Notification("⚡ Alpha Brain price alert", {
+                body: msg,
+                tag: `ab-${a.symbol}`,
+                renotify: true,
+                requireInteraction: true,
+                silent: false,
+                icon: "/icons/icon-192.png",
+                badge: "/icons/icon-192.png",
+              } as NotificationOptions);
+              n.onclick = () => { try { window.focus(); n.close(); } catch { /* noop */ } };
+            }
+          } catch { /* noop */ }
+          try { if (a.sound !== false) beep(a.direction === "above"); } catch { /* noop */ }
+          try { if ("vibrate" in navigator) navigator.vibrate([80, 40, 120, 40, 200]); } catch { /* noop */ }
           try { window.dispatchEvent(new CustomEvent("ab-toast", { detail: msg })); } catch { /* noop */ }
+          if (a.repeat) {
+            // Re-arm on the opposite side of target so it fires again on the next crossing
+            return { ...a, basePrice: q.price };
+          }
           return { ...a, triggered: Date.now() };
         }
         return a;
@@ -184,7 +229,7 @@ function Dashboard() {
       if (changed) setAlerts(next);
     };
     check();
-    const id = setInterval(check, 5_000);
+    const id = setInterval(check, 3_000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alerts, quoteMap]);
