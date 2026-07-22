@@ -1887,7 +1887,18 @@ function InstallModal({ onClose }: { onClose: () => void }) {
           )}
           {os === "windows" && (
             <>
-              <div className="text-white font-semibold text-xs uppercase tracking-wider">Windows 10 / 11 — Chrome / Edge</div>
+              <div className="text-white font-semibold text-xs uppercase tracking-wider">Windows 10 / 11 — Native Desktop App</div>
+              <a
+                href="/__l5e/assets-v1/31064dc2-65b0-4464-a620-64c0b701014a/AlphaBrain-Setup-win-x64.zip"
+                download="AlphaBrain-Setup-win-x64.zip"
+                rel="noopener"
+                className="tap mt-1 mb-2 w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"
+                style={{ background: "var(--grad-neon)", color: "var(--primary-foreground)" }}
+              >
+                <Download className="h-4 w-4" /> Download for Windows (.zip · 110 MB)
+              </a>
+              <div className="text-[11px] text-slate-400">Unzip and run <code className="text-cyan-300">AlphaBrain.exe</code>. If SmartScreen appears, click <em>More info → Run anyway</em>.</div>
+              <div className="text-white font-semibold text-xs uppercase tracking-wider mt-3">Or install as PWA (Chrome / Edge)</div>
               <ol className="list-decimal ml-5 space-y-1 text-slate-300">
                 <li>Click the <b>install icon</b> (⊕ or monitor with down arrow) in the address bar.</li>
                 <li>Or open the browser menu → <b>Apps → Install this site as an app</b>.</li>
