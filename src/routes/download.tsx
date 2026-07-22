@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { LegalShell } from "./about";
 import { Download, Monitor, Apple, Smartphone } from "lucide-react";
+import winAsset from "../../public/downloads/AlphaBrain-Setup-win-x64.zip.asset.json";
 
 export const Route = createFileRoute("/download")({
   head: () => ({
@@ -12,7 +13,8 @@ export const Route = createFileRoute("/download")({
   component: DownloadPage,
 });
 
-const WIN_URL = "/__l5e/assets-v1/31064dc2-65b0-4464-a620-64c0b701014a/AlphaBrain-Setup-win-x64.zip";
+const WIN_URL = winAsset.url;
+const WIN_SIZE_MB = (winAsset.size / (1024 * 1024)).toFixed(1);
 
 function DownloadPage() {
   return (
@@ -24,12 +26,13 @@ function DownloadPage() {
           <Monitor className="w-8 h-8 text-cyan-400" />
           <div>
             <div className="text-white font-bold text-lg">Windows 10 / 11 (x64)</div>
-            <div className="text-xs text-slate-400 font-mono">AlphaBrain-Setup-win-x64.zip · Electron build</div>
+            <div className="text-xs text-slate-400 font-mono">AlphaBrain-Setup-win-x64.zip · {WIN_SIZE_MB} MB · Electron build</div>
           </div>
         </div>
         <a
           href={WIN_URL}
-          download
+          download="AlphaBrain-Setup-win-x64.zip"
+          rel="noopener"
           className="mt-5 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold transition-colors"
         >
           <Download className="w-5 h-5" />
