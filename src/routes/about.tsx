@@ -19,6 +19,20 @@ function AboutPage() {
       <p>Our mission is to give retail traders the same edge that institutional desks enjoy: instant cross-asset context, technical indicators (RSI, MACD, ATR), a backtesting sandbox, and a "brain" that continuously scans thousands of assets to surface actionable ideas.</p>
       <h2>Built by</h2>
       <p>DOGEKINGMIKE — follow on Product Hunt: <a href="https://www.producthunt.com/@dogekingmike" target="_blank" rel="noopener">@dogekingmike</a>.</p>
+
+      <div className="not-prose my-6" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', border: '1px solid rgb(224,224,224)', borderRadius: 12, padding: 20, maxWidth: 500, background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <img alt="Alpha Brain" src="https://ph-files.imgix.net/7c28d5cf-2b7b-423c-afaf-e74cb8335ebf.png?auto=compress,format&codec=mozjpeg&cs=strip&fit=crop&h=80&w=80" style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+          <div style={{ flex: '1 1 0%', minWidth: 0 }}>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#1a1a1a', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Alpha Brain</h3>
+            <p style={{ margin: '4px 0 0', fontSize: 14, color: '#666', lineHeight: 1.4 }}>STOCK , CRYPTO</p>
+          </div>
+        </div>
+        <a href="https://www.producthunt.com/products/alpha-brain?embed=true&utm_source=embed&utm_medium=post_embed" target="_blank" rel="noopener" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 12, padding: '8px 16px', background: '#ff6154', color: '#fff', textDecoration: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600 }}>
+          Check it out on Product Hunt →
+        </a>
+      </div>
+
       <h2>Not financial advice</h2>
       <p>Everything Alpha Brain surfaces is informational. Markets carry risk. Never invest more than you can afford to lose.</p>
     </LegalShell>
