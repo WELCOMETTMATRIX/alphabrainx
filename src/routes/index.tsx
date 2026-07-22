@@ -158,10 +158,6 @@ function Dashboard() {
   });
   const scanMut = useMutation({ mutationFn: () => aiMarketScan({ data: { scope: scanScope, watchlist: scanScope === "watchlist" ? watch.map((w) => w.symbol) : undefined } }) });
 
-  // -------- Alerts polling --------
-  useEffect(() => {
-    if (!alerts.length) return;
-    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
   // -------- Alerts polling (fast, background-safe, sound + vibration) --------
   useEffect(() => {
     if (!alerts.length) return;
