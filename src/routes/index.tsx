@@ -26,7 +26,7 @@ export const Route = createFileRoute("/")({ component: Dashboard });
 
 type Kind = "stock" | "crypto";
 type Watch = { symbol: string; kind: Kind; label?: string };
-type Alert = { id: string; symbol: string; kind: Kind; direction: "above" | "below"; target: number; note?: string; created: number; triggered?: number };
+type Alert = { id: string; symbol: string; kind: Kind; direction: "above" | "below"; target: number; note?: string; created: number; triggered?: number; sound?: boolean; repeat?: boolean; basePrice?: number };
 type MobileTab = "chart" | "browse" | "alerts" | "compare" | "ai";
 
 const DEFAULT_WATCH: Watch[] = [
@@ -93,8 +93,12 @@ function Dashboard() {
   const tracked = useMemo(() => {
     const map = new Map<string, Watch>();
     [...watch, ...compareSyms].forEach((w) => map.set(w.symbol, w));
+    // Ensure any symbol with an active alert is also polled, even if not on watchlist
+    alerts.filter((a) => !a.triggered).forEach((a) => {
+      if (!map.has(a.symbol)) map.set(a.symbol, { symbol: a.symbol, kind: a.kind });
+    });
     return Array.from(map.values());
-  }, [watch, compareSyms]);
+  }, [watch, compareSyms, alerts]);
 
   const quotes = useQueries({
     queries: tracked.map((w) => ({
@@ -154,13 +158,34 @@ function Dashboard() {
   });
   const scanMut = useMutation({ mutationFn: () => aiMarketScan({ data: { scope: scanScope, watchlist: scanScope === "watchlist" ? watch.map((w) => w.symbol) : undefined } }) });
 
-  // -------- Alerts polling --------
+  // -------- Alerts polling (fast, background-safe, sound + vibration) --------
   useEffect(() => {
     if (!alerts.length) return;
     if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
-      // Ask lazily on first alert
       Notification.requestPermission().catch(() => {});
     }
+
+    const beep = (up: boolean) => {
+      try {
+        const AC: typeof AudioContext | undefined = (window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+        if (!AC) return;
+        const ctx = new AC();
+        const now = ctx.currentTime;
+        const notes = up ? [660, 880, 1180] : [520, 380, 260];
+        notes.forEach((f, i) => {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = "sine"; o.frequency.value = f;
+          g.gain.setValueAtTime(0.0001, now + i * 0.11);
+          g.gain.exponentialRampToValueAtTime(0.22, now + i * 0.11 + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.11 + 0.18);
+          o.connect(g).connect(ctx.destination);
+          o.start(now + i * 0.11); o.stop(now + i * 0.11 + 0.2);
+        });
+        setTimeout(() => { try { ctx.close(); } catch { /* noop */ } }, 900);
+      } catch { /* noop */ }
+    };
+
     const check = () => {
       let changed = false;
       const next = alerts.map((a) => {
@@ -170,9 +195,29 @@ function Dashboard() {
         const hit = a.direction === "above" ? q.price >= a.target : q.price <= a.target;
         if (hit) {
           changed = true;
-          const msg = `${clean(a.symbol)} ${a.direction} $${fmt(a.target)} — now $${fmt(q.price)}`;
-          try { if ("Notification" in window && Notification.permission === "granted") new Notification("Alpha Brain alert", { body: msg }); } catch { /* noop */ }
+          const arrow = a.direction === "above" ? "▲" : "▼";
+          const msg = `${arrow} ${clean(a.symbol)} ${a.direction} $${fmt(a.target)} — now $${fmt(q.price)}`;
+          try {
+            if ("Notification" in window && Notification.permission === "granted") {
+              const n = new Notification("⚡ Alpha Brain price alert", {
+                body: msg,
+                tag: `ab-${a.symbol}`,
+                renotify: true,
+                requireInteraction: true,
+                silent: false,
+                icon: "/icons/icon-192.png",
+                badge: "/icons/icon-192.png",
+              } as NotificationOptions);
+              n.onclick = () => { try { window.focus(); n.close(); } catch { /* noop */ } };
+            }
+          } catch { /* noop */ }
+          try { if (a.sound !== false) beep(a.direction === "above"); } catch { /* noop */ }
+          try { if ("vibrate" in navigator) navigator.vibrate([80, 40, 120, 40, 200]); } catch { /* noop */ }
           try { window.dispatchEvent(new CustomEvent("ab-toast", { detail: msg })); } catch { /* noop */ }
+          if (a.repeat) {
+            // Re-arm on the opposite side of target so it fires again on the next crossing
+            return { ...a, basePrice: q.price };
+          }
           return { ...a, triggered: Date.now() };
         }
         return a;
@@ -180,7 +225,7 @@ function Dashboard() {
       if (changed) setAlerts(next);
     };
     check();
-    const id = setInterval(check, 5_000);
+    const id = setInterval(check, 3_000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alerts, quoteMap]);
@@ -250,7 +295,7 @@ function Dashboard() {
             </PanelShell>
           )}
           <AlertsPanel alerts={alerts} setAlerts={setAlerts} selected={selected}
-            currentPrice={quoteMap.get(selected.symbol)?.price} />
+            currentPrice={quoteMap.get(selected.symbol)?.price} quoteMap={quoteMap} />
           <MoversMini crypto={cryptoMoversQuery.data} stocks={stockMoversQuery.data}
             onPickCrypto={(s) => setOpenAsset({ symbol: s, kind: "crypto" })}
             onPickStock={(s) => setOpenAsset({ symbol: s, kind: "stock" })} />
@@ -308,7 +353,7 @@ function Dashboard() {
         )}
         {mobileTab === "alerts" && (
           <AlertsPanel alerts={alerts} setAlerts={setAlerts} selected={selected}
-            currentPrice={quoteMap.get(selected.symbol)?.price} />
+            currentPrice={quoteMap.get(selected.symbol)?.price} quoteMap={quoteMap} />
         )}
         {mobileTab === "compare" && (
           <CompareManager compareSyms={compareSyms} onRemove={(s) => setCompareSyms((p) => p.filter((x) => x.symbol !== s))}
@@ -1213,66 +1258,201 @@ function VirtualList<T>({ items, height, renderItem, loading, rowHeight = 52 }: 
 // ============================================================================
 // ALERTS PANEL
 // ============================================================================
-function AlertsPanel({ alerts, setAlerts, selected, currentPrice }: {
+function AlertsPanel({ alerts, setAlerts, selected, currentPrice, quoteMap }: {
   alerts: Alert[]; setAlerts: (v: Alert[] | ((p: Alert[]) => Alert[])) => void;
   selected: Watch; currentPrice?: number;
+  quoteMap?: Map<string, { price: number; changePercent: number; high?: number; low?: number }>;
 }) {
   const [dir, setDir] = useState<"above" | "below">("above");
   const [target, setTarget] = useState<string>("");
-  useEffect(() => { setTarget(currentPrice ? (currentPrice >= 1 ? currentPrice.toFixed(2) : currentPrice.toPrecision(4)) : ""); }, [selected.symbol, currentPrice]);
+  const [sound, setSound] = useState(true);
+  const [repeat, setRepeat] = useState(false);
+  const [perm, setPerm] = useState<NotificationPermission | "unsupported">("default");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("Notification" in window)) { setPerm("unsupported"); return; }
+    setPerm(Notification.permission);
+  }, []);
+
+  const formatPrice = (n: number) => n >= 1 ? n.toFixed(2) : n.toPrecision(6);
+  useEffect(() => { setTarget(currentPrice ? formatPrice(currentPrice) : ""); }, [selected.symbol, currentPrice]);
+
+  const enableNotifications = async () => {
+    try {
+      const r = await Notification.requestPermission();
+      setPerm(r);
+      // Fire a test notification to confirm delivery on iOS/Android PWA + desktop
+      if (r === "granted") {
+        try { new Notification("✅ Alerts enabled", { body: "You'll be notified when your targets hit.", tag: "ab-welcome" }); } catch { /* noop */ }
+      }
+    } catch { /* noop */ }
+  };
 
   const create = () => {
     const t = parseFloat(target); if (!t || Number.isNaN(t)) return;
-    const a: Alert = { id: `${Date.now()}${Math.random()}`, symbol: selected.symbol, kind: selected.kind, direction: dir, target: t, created: Date.now() };
+    const a: Alert = {
+      id: `${Date.now()}${Math.random()}`, symbol: selected.symbol, kind: selected.kind,
+      direction: dir, target: t, created: Date.now(),
+      sound, repeat, basePrice: currentPrice,
+    };
     setAlerts((prev) => [a, ...prev]);
-    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {});
+    if ("Notification" in window && Notification.permission === "default") enableNotifications();
   };
+
+  const applyPct = (pct: number) => {
+    if (!currentPrice) return;
+    const t = currentPrice * (1 + pct / 100);
+    setDir(pct >= 0 ? "above" : "below");
+    setTarget(formatPrice(t));
+  };
+
   const del = (id: string) => setAlerts((prev) => prev.filter((a) => a.id !== id));
+  const rearm = (id: string) => setAlerts((prev) => prev.map((a) => a.id === id ? { ...a, triggered: undefined, basePrice: quoteMap?.get(a.symbol)?.price ?? a.basePrice } : a));
+  const clearTriggered = () => setAlerts((prev) => prev.filter((a) => !a.triggered));
+
+  const activeCount = alerts.filter((a) => !a.triggered).length;
+  const triggeredCount = alerts.length - activeCount;
 
   return (
     <div className="glass rounded-2xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs font-bold uppercase tracking-[0.15em] flex items-center gap-2">
-          <Bell className="h-3.5 w-3.5 text-primary" /> Price Alerts
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <h2 className="text-xs font-bold uppercase tracking-[0.15em] flex items-center gap-2 min-w-0">
+          <Bell className="h-3.5 w-3.5 text-primary shrink-0" /> Price Alerts
         </h2>
-        <span className="text-[10px] font-mono text-slate-500">{alerts.filter((a) => !a.triggered).length} active</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[10px] font-mono text-emerald-400">{activeCount} live</span>
+          {triggeredCount > 0 && (
+            <button onClick={clearTriggered} className="text-[10px] font-mono text-slate-500 hover:text-white underline decoration-dotted">
+              clear {triggeredCount}
+            </button>
+          )}
+        </div>
       </div>
+
+      {perm !== "granted" && perm !== "unsupported" && (
+        <button onClick={enableNotifications}
+          className="w-full mb-3 flex items-center justify-center gap-2 rounded-xl py-2.5 text-[11px] font-bold min-h-[40px]"
+          style={{ background: "var(--grad-neon)", color: "var(--primary-foreground)" }}>
+          <BellRing className="h-3.5 w-3.5" /> Enable fast push notifications
+        </button>
+      )}
+      {perm === "unsupported" && (
+        <p className="text-[10px] text-amber-400/80 mb-3 leading-snug">
+          Your browser doesn't support push. Install this app to your home screen (iOS) or as a PWA (Android/Desktop) for background alerts.
+        </p>
+      )}
+
       <div className="glass rounded-xl p-2.5 space-y-2 mb-3">
-        <div className="flex items-center gap-2 text-xs">
-          <span className="font-mono font-bold text-primary">{clean(selected.symbol)}</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-mono font-bold text-primary text-xs">{clean(selected.symbol)}</span>
+          {currentPrice !== undefined && (
+            <span className="text-[10px] font-mono text-slate-400">@ ${fmt(currentPrice)}</span>
+          )}
           <div className="glass-pill flex p-0.5 ml-auto">
             {(["above", "below"] as const).map((d) => (
               <button key={d} onClick={() => setDir(d)}
-                className={`px-3 py-1 text-[10px] font-mono uppercase rounded-full transition ${dir === d ? "bg-white/20 text-white" : "text-slate-400"}`}>{d}</button>
+                className={`px-3 py-1 text-[10px] font-mono uppercase rounded-full transition min-h-[28px] ${dir === d ? (d === "above" ? "bg-emerald-500/30 text-emerald-200" : "bg-rose-500/30 text-rose-200") : "text-slate-400"}`}>{d}</button>
             ))}
           </div>
         </div>
+
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
+          {[-10, -5, -2, 2, 5, 10].map((p) => (
+            <button key={p} onClick={() => applyPct(p)}
+              className={`rounded-lg py-1.5 text-[10px] font-mono font-bold min-h-[32px] transition ${p >= 0 ? "text-emerald-300 hover:bg-emerald-500/15" : "text-rose-300 hover:bg-rose-500/15"} glass`}>
+              {p > 0 ? "+" : ""}{p}%
+            </button>
+          ))}
+        </div>
+
         <div className="flex gap-1.5">
           <input value={target} onChange={(e) => setTarget(e.target.value)} type="number" step="any"
-            placeholder="Target price"
-            className="flex-1 glass rounded-lg px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-primary/40" />
-          <button onClick={create}
-            className="rounded-lg text-xs px-4 py-2 font-bold min-h-[44px] flex items-center gap-1"
+            inputMode="decimal" placeholder="Target price"
+            className="flex-1 min-w-0 glass rounded-lg px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-primary/40" />
+          <button onClick={create} disabled={!target}
+            className="rounded-lg text-xs px-4 py-2 font-bold min-h-[44px] flex items-center gap-1 disabled:opacity-40"
             style={{ background: "var(--grad-neon)", color: "var(--primary-foreground)" }}>
             <Plus className="h-3.5 w-3.5" /> Set
           </button>
         </div>
-        <p className="text-[10px] text-slate-500">Notifies you in-app + via browser notification when {clean(selected.symbol)} crosses your level. Checked every 30s while the tab is open.</p>
+
+        <div className="flex items-center gap-2 flex-wrap text-[10px]">
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" checked={sound} onChange={(e) => setSound(e.target.checked)} className="accent-primary h-3.5 w-3.5" />
+            <span className="text-slate-300">Sound</span>
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} className="accent-primary h-3.5 w-3.5" />
+            <span className="text-slate-300">Repeat on re-cross</span>
+          </label>
+          <span className="ml-auto font-mono text-slate-500">poll 3s · bg on</span>
+        </div>
       </div>
-      <div className="space-y-1.5 max-h-[220px] overflow-y-auto">
-        {alerts.length === 0 && <div className="text-[11px] text-slate-500 text-center py-4">No alerts yet.</div>}
-        {alerts.map((a) => (
-          <div key={a.id} className={`flex items-center gap-2 p-2 rounded-lg glass ${a.triggered ? "opacity-60" : ""}`}>
-            <div className={`h-8 w-8 rounded-lg grid place-items-center ${a.direction === "above" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>
-              {a.direction === "above" ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold">{clean(a.symbol)} <span className="text-slate-400 font-normal">{a.direction}</span> <span className="font-mono">${fmt(a.target)}</span></div>
-              <div className="text-[10px] text-slate-500 font-mono">{a.triggered ? `triggered ${new Date(a.triggered).toLocaleTimeString()}` : "watching"}</div>
-            </div>
-            <button onClick={() => del(a.id)} className="h-8 w-8 grid place-items-center rounded-lg hover:bg-white/10 text-slate-400"><X className="h-4 w-4" /></button>
+
+      <div className="space-y-1.5 max-h-[280px] overflow-y-auto -mr-1 pr-1">
+        {alerts.length === 0 && (
+          <div className="text-[11px] text-slate-500 text-center py-6 leading-relaxed">
+            No alerts yet.<br />
+            <span className="text-slate-600">Tap a % chip or type a target to start watching.</span>
           </div>
-        ))}
+        )}
+        {alerts.map((a) => {
+          const q = quoteMap?.get(a.symbol);
+          const now = q?.price;
+          const distPct = now !== undefined && a.target > 0 ? ((a.target - now) / now) * 100 : undefined;
+          const nearer = distPct !== undefined ? Math.max(0, Math.min(100, 100 - Math.min(Math.abs(distPct), 20) * 5)) : 0;
+          return (
+            <div key={a.id} className={`p-2 rounded-xl glass ${a.triggered ? "opacity-60" : ""}`}>
+              <div className="flex items-center gap-2">
+                <div className={`h-9 w-9 rounded-lg grid place-items-center shrink-0 ${a.direction === "above" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>
+                  {a.direction === "above" ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold flex items-center gap-1.5 flex-wrap">
+                    <span className="truncate">{clean(a.symbol)}</span>
+                    <span className="text-slate-500 font-normal">{a.direction}</span>
+                    <span className="font-mono text-primary">${fmt(a.target)}</span>
+                    {a.repeat && <span className="text-[8px] font-mono px-1 py-0.5 rounded bg-white/10 text-slate-300">↻</span>}
+                    {a.sound === false && <span className="text-[8px] font-mono px-1 py-0.5 rounded bg-white/10 text-slate-400">muted</span>}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2">
+                    {a.triggered ? (
+                      <span className="text-amber-400">triggered {new Date(a.triggered).toLocaleTimeString()}</span>
+                    ) : now !== undefined ? (
+                      <>
+                        <span>now ${fmt(now)}</span>
+                        {distPct !== undefined && (
+                          <span className={distPct >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                            {distPct >= 0 ? "+" : ""}{distPct.toFixed(2)}% away
+                          </span>
+                        )}
+                      </>
+                    ) : <span>waiting for quote…</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {a.triggered && (
+                    <button onClick={() => rearm(a.id)} title="Re-arm"
+                      className="h-8 w-8 grid place-items-center rounded-lg hover:bg-white/10 text-emerald-400">
+                      <BellRing className="h-4 w-4" />
+                    </button>
+                  )}
+                  <button onClick={() => del(a.id)} title="Delete"
+                    className="h-8 w-8 grid place-items-center rounded-lg hover:bg-white/10 text-slate-400">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              {!a.triggered && distPct !== undefined && (
+                <div className="mt-1.5 h-1 rounded-full bg-white/5 overflow-hidden">
+                  <div className={`h-full transition-all ${a.direction === "above" ? "bg-emerald-400/70" : "bg-rose-400/70"}`}
+                    style={{ width: `${nearer}%` }} />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
