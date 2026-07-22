@@ -26,12 +26,13 @@ function DownloadPage() {
           <Monitor className="w-8 h-8 text-cyan-400" />
           <div>
             <div className="text-white font-bold text-lg">Windows 10 / 11 (x64)</div>
-            <div className="text-xs text-slate-400 font-mono">AlphaBrain-Setup-win-x64.zip · Electron build</div>
+            <div className="text-xs text-slate-400 font-mono">AlphaBrain-Setup-win-x64.zip · {WIN_SIZE_MB} MB · Electron build</div>
           </div>
         </div>
         <a
           href={WIN_URL}
-          download
+          download="AlphaBrain-Setup-win-x64.zip"
+          rel="noopener"
           className="mt-5 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold transition-colors"
         >
           <Download className="w-5 h-5" />
