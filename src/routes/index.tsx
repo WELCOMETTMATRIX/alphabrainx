@@ -93,8 +93,12 @@ function Dashboard() {
   const tracked = useMemo(() => {
     const map = new Map<string, Watch>();
     [...watch, ...compareSyms].forEach((w) => map.set(w.symbol, w));
+    // Ensure any symbol with an active alert is also polled, even if not on watchlist
+    alerts.filter((a) => !a.triggered).forEach((a) => {
+      if (!map.has(a.symbol)) map.set(a.symbol, { symbol: a.symbol, kind: a.kind });
+    });
     return Array.from(map.values());
-  }, [watch, compareSyms]);
+  }, [watch, compareSyms, alerts]);
 
   const quotes = useQueries({
     queries: tracked.map((w) => ({
