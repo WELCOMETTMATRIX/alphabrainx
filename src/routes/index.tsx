@@ -353,7 +353,7 @@ function Dashboard() {
         )}
         {mobileTab === "alerts" && (
           <AlertsPanel alerts={alerts} setAlerts={setAlerts} selected={selected}
-            currentPrice={quoteMap.get(selected.symbol)?.price} />
+            currentPrice={quoteMap.get(selected.symbol)?.price} quoteMap={quoteMap} />
         )}
         {mobileTab === "compare" && (
           <CompareManager compareSyms={compareSyms} onRemove={(s) => setCompareSyms((p) => p.filter((x) => x.symbol !== s))}
