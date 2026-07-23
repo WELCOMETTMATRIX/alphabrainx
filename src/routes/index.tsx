@@ -407,6 +407,7 @@ function Dashboard() {
       <footer className="hidden lg:flex flex-wrap items-center justify-center gap-4 text-[10px] text-slate-500 py-4 font-mono uppercase tracking-widest">
         <span>Alpha Brain Pro · Not financial advice</span>
         <span className="text-slate-700">·</span>
+        <a href="/intelligence" className="hover:text-cyan-400">🧠 Intelligence Center</a>
         <a href="/about" className="hover:text-cyan-400">About</a>
         <a href="/faq" className="hover:text-cyan-400">FAQ</a>
         <a href="/privacy" className="hover:text-cyan-400">Privacy</a>

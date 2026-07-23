@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as IntelligenceRouteImport } from './routes/intelligence'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as ContactRouteImport } from './routes/contact'
@@ -25,6 +26,11 @@ const TermsRoute = TermsRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IntelligenceRoute = IntelligenceRouteImport.update({
+  id: '/intelligence',
+  path: '/intelligence',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FaqRoute = FaqRouteImport.update({
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/contact': typeof ContactRoute
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
+  '/intelligence': typeof IntelligenceRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
 }
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/contact': typeof ContactRoute
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
+  '/intelligence': typeof IntelligenceRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
 }
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/contact': typeof ContactRoute
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
+  '/intelligence': typeof IntelligenceRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
 }
@@ -89,10 +98,19 @@ export interface FileRouteTypes {
     | '/contact'
     | '/download'
     | '/faq'
+    | '/intelligence'
     | '/privacy'
     | '/terms'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/contact' | '/download' | '/faq' | '/privacy' | '/terms'
+  to:
+    | '/'
+    | '/about'
+    | '/contact'
+    | '/download'
+    | '/faq'
+    | '/intelligence'
+    | '/privacy'
+    | '/terms'
   id:
     | '__root__'
     | '/'
@@ -100,6 +118,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/download'
     | '/faq'
+    | '/intelligence'
     | '/privacy'
     | '/terms'
   fileRoutesById: FileRoutesById
@@ -110,6 +129,7 @@ export interface RootRouteChildren {
   ContactRoute: typeof ContactRoute
   DownloadRoute: typeof DownloadRoute
   FaqRoute: typeof FaqRoute
+  IntelligenceRoute: typeof IntelligenceRoute
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
 }
@@ -128,6 +148,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/intelligence': {
+      id: '/intelligence'
+      path: '/intelligence'
+      fullPath: '/intelligence'
+      preLoaderRoute: typeof IntelligenceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/faq': {
@@ -174,19 +201,10 @@ const rootRouteChildren: RootRouteChildren = {
   ContactRoute: ContactRoute,
   DownloadRoute: DownloadRoute,
   FaqRoute: FaqRoute,
+  IntelligenceRoute: IntelligenceRoute,
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
