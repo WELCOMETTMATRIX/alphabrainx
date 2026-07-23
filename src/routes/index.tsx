@@ -407,6 +407,7 @@ function Dashboard() {
       <footer className="hidden lg:flex flex-wrap items-center justify-center gap-4 text-[10px] text-slate-500 py-4 font-mono uppercase tracking-widest">
         <span>Alpha Brain Pro · Not financial advice</span>
         <span className="text-slate-700">·</span>
+        <a href="/intelligence" className="hover:text-cyan-400">🧠 Intelligence Center</a>
         <a href="/about" className="hover:text-cyan-400">About</a>
         <a href="/faq" className="hover:text-cyan-400">FAQ</a>
         <a href="/privacy" className="hover:text-cyan-400">Privacy</a>
@@ -486,6 +487,11 @@ function Header({ alerts, onOpenAlerts, onOpenInstall, theme, setTheme }: { aler
             className="md:hidden tap h-10 w-10 grid place-items-center rounded-xl glass hover:bg-white/10">
             <Sparkles className="h-4 w-4" />
           </button>
+          <a href="/intelligence" title="AI Intelligence Center"
+            className="tap h-10 px-3 grid place-items-center rounded-xl glass hover:bg-white/10 flex items-center gap-1.5 text-cyan-300 hover:text-cyan-200 border border-cyan-400/30">
+            <Brain className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs font-semibold uppercase tracking-wider">Intel</span>
+          </a>
           <button onClick={onOpenInstall} title="Install app"
             className="tap h-10 px-3 sm:px-3 grid place-items-center rounded-xl glass hover:bg-white/10 flex items-center gap-1.5">
             <Download className="h-4 w-4" />
