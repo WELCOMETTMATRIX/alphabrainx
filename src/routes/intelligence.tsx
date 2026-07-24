@@ -789,10 +789,17 @@ function ParticleField() {
 
 function Footer() {
   return (
-    <div className="flex flex-wrap items-center justify-center gap-4 text-[10px] text-slate-500 py-6 font-mono uppercase tracking-widest">
+    <div className="flex flex-wrap items-center justify-center gap-3 text-[10px] text-slate-500 py-6 font-mono uppercase tracking-widest">
       <Link to="/" className="hover:text-cyan-400">← Back to Terminal</Link>
       <span className="text-slate-700">·</span>
-      <span>Alpha Brain · Intelligence Center · Simulated live view</span>
+      <span>Alpha Brain · Intelligence Center</span>
+      <span className="text-slate-700">·</span>
+      <a href={SCAMWATCH_URL} target="_blank" rel="noreferrer" className="text-fuchsia-300 hover:text-fuchsia-200">
+        Created &amp; powered by ScamWatch × Nova ↗
+      </a>
+      <span className="text-slate-700">·</span>
+      <span className="text-slate-400">All threat data is public & free to copy</span>
     </div>
   );
 }
+
