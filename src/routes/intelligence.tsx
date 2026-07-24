@@ -1,9 +1,30 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Activity, AlertTriangle, Brain, Cpu, Database, Eye, Gauge, GitBranch, Globe,
-  Layers, Network, Radar, Radio, Shield, Sparkles, Target, Waves, Zap,
+  Activity, AlertTriangle, Brain, Copy, Cpu, Database, Eye, Gauge, GitBranch, Globe,
+  Layers, Network, Radar, Radio, Search, Shield, Sparkles, Target, Waves, Zap,
 } from "lucide-react";
+
+const SCAMWATCH_URL = "https://scamwatchnova.lovable.app";
+
+function CopyBtn({ text, label = "Copy" }: { text: string; label?: string }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        try { navigator.clipboard?.writeText(text); } catch {}
+        setOk(true);
+        setTimeout(() => setOk(false), 1200);
+      }}
+      title={`Copy ${text}`}
+      className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest text-slate-300 hover:bg-white/10 hover:text-cyan-300 transition-colors"
+    >
+      <Copy className="h-3 w-3" /> {ok ? "Copied" : label}
+    </button>
+  );
+}
 
 export const Route = createFileRoute("/intelligence")({
   component: IntelligenceCenter,
