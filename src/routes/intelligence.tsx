@@ -520,19 +520,30 @@ const MEMORY = [
   { k: "social", v: "@nebula_support", meta: "cloned handle · reported 22×" },
 ];
 function AIMemory() {
+  const allText = useMemo(() => MEMORY.map(m => `${m.k}\t${m.v}\t${m.meta}`).join("\n"), []);
   return (
-    <Panel title="AI Memory" icon={Database} subtitle="Long-term recall of entities & incidents">
+    <Panel title="AI Memory" icon={Database} subtitle="Long-term recall of entities & incidents — free to copy">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[10px] font-mono uppercase tracking-widest text-slate-500">{MEMORY.length} stored entities · public dataset</div>
+        <CopyBtn text={allText} label="Copy all" />
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {MEMORY.map((m) => (
           <div key={m.v} className="glass-pill rounded-lg p-2.5 border border-white/5">
             <div className="flex items-center gap-2">
               <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded bg-cyan-400/10 text-cyan-300 border border-cyan-400/20">{m.k}</span>
-              <span className="text-sm font-semibold text-slate-100 truncate">{m.v}</span>
+              <span className="text-sm font-semibold text-slate-100 truncate flex-1">{m.v}</span>
+              <CopyBtn text={m.v} />
             </div>
             <div className="text-[11px] text-slate-400 mt-1">{m.meta}</div>
           </div>
         ))}
       </div>
+      <div className="text-[10px] font-mono uppercase tracking-widest text-fuchsia-300/70 mt-3 text-center">
+        Threat intel powered by{" "}
+        <a href={SCAMWATCH_URL} target="_blank" rel="noreferrer" className="underline hover:text-fuchsia-200">ScamWatch × Nova</a>
+      </div>
+
     </Panel>
   );
 }
