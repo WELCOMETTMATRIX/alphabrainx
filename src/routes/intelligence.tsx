@@ -96,11 +96,20 @@ function TopBar() {
         <div>
           <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-cyan-400/80">Alpha Brain // Intelligence</div>
           <div className="text-xl sm:text-2xl font-black tracking-tight">AI Intelligence Center</div>
+          <a
+            href={SCAMWATCH_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-1 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-fuchsia-300/90 hover:text-fuchsia-200"
+          >
+            <Sparkles className="h-3 w-3" /> Created &amp; powered by <span className="underline decoration-fuchsia-400/50">ScamWatch × Nova</span>
+          </a>
         </div>
       </div>
       <div className="flex items-center gap-2 text-xs">
         <StatusChip color="emerald" label="ONLINE" />
         <StatusChip color="cyan" label="REASONING" pulse />
+        <a href={SCAMWATCH_URL} target="_blank" rel="noreferrer" className="glass-pill px-3 py-1.5 text-fuchsia-300 hover:text-fuchsia-200 border border-fuchsia-400/30">ScamWatch × Nova ↗</a>
         <Link to="/" className="glass-pill px-3 py-1.5 text-slate-300 hover:text-white">← Terminal</Link>
       </div>
     </div>
