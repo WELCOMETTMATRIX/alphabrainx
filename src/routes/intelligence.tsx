@@ -1,9 +1,30 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Activity, AlertTriangle, Brain, Cpu, Database, Eye, Gauge, GitBranch, Globe,
-  Layers, Network, Radar, Radio, Shield, Sparkles, Target, Waves, Zap,
+  Activity, AlertTriangle, Brain, Copy, Cpu, Database, Eye, Gauge, GitBranch, Globe,
+  Layers, Network, Radar, Radio, Search, Shield, Sparkles, Target, Waves, Zap,
 } from "lucide-react";
+
+const SCAMWATCH_URL = "https://scamwatchnova.lovable.app";
+
+function CopyBtn({ text, label = "Copy" }: { text: string; label?: string }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        try { navigator.clipboard?.writeText(text); } catch {}
+        setOk(true);
+        setTimeout(() => setOk(false), 1200);
+      }}
+      title={`Copy ${text}`}
+      className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest text-slate-300 hover:bg-white/10 hover:text-cyan-300 transition-colors"
+    >
+      <Copy className="h-3 w-3" /> {ok ? "Copied" : label}
+    </button>
+  );
+}
 
 export const Route = createFileRoute("/intelligence")({
   component: IntelligenceCenter,
@@ -51,6 +72,7 @@ function IntelligenceCenter() {
           </div>
         </div>
         <ThreatTimeline />
+        <ThreatDatabase />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <AIMemory />
           <Explainability />
@@ -75,11 +97,20 @@ function TopBar() {
         <div>
           <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-cyan-400/80">Alpha Brain // Intelligence</div>
           <div className="text-xl sm:text-2xl font-black tracking-tight">AI Intelligence Center</div>
+          <a
+            href={SCAMWATCH_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-1 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-fuchsia-300/90 hover:text-fuchsia-200"
+          >
+            <Sparkles className="h-3 w-3" /> Created &amp; powered by <span className="underline decoration-fuchsia-400/50">ScamWatch × Nova</span>
+          </a>
         </div>
       </div>
       <div className="flex items-center gap-2 text-xs">
         <StatusChip color="emerald" label="ONLINE" />
         <StatusChip color="cyan" label="REASONING" pulse />
+        <a href={SCAMWATCH_URL} target="_blank" rel="noreferrer" className="glass-pill px-3 py-1.5 text-fuchsia-300 hover:text-fuchsia-200 border border-fuchsia-400/30">ScamWatch × Nova ↗</a>
         <Link to="/" className="glass-pill px-3 py-1.5 text-slate-300 hover:text-white">← Terminal</Link>
       </div>
     </div>
@@ -489,19 +520,30 @@ const MEMORY = [
   { k: "social", v: "@nebula_support", meta: "cloned handle · reported 22×" },
 ];
 function AIMemory() {
+  const allText = useMemo(() => MEMORY.map(m => `${m.k}\t${m.v}\t${m.meta}`).join("\n"), []);
   return (
-    <Panel title="AI Memory" icon={Database} subtitle="Long-term recall of entities & incidents">
+    <Panel title="AI Memory" icon={Database} subtitle="Long-term recall of entities & incidents — free to copy">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[10px] font-mono uppercase tracking-widest text-slate-500">{MEMORY.length} stored entities · public dataset</div>
+        <CopyBtn text={allText} label="Copy all" />
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {MEMORY.map((m) => (
           <div key={m.v} className="glass-pill rounded-lg p-2.5 border border-white/5">
             <div className="flex items-center gap-2">
               <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded bg-cyan-400/10 text-cyan-300 border border-cyan-400/20">{m.k}</span>
-              <span className="text-sm font-semibold text-slate-100 truncate">{m.v}</span>
+              <span className="text-sm font-semibold text-slate-100 truncate flex-1">{m.v}</span>
+              <CopyBtn text={m.v} />
             </div>
             <div className="text-[11px] text-slate-400 mt-1">{m.meta}</div>
           </div>
         ))}
       </div>
+      <div className="text-[10px] font-mono uppercase tracking-widest text-fuchsia-300/70 mt-3 text-center">
+        Threat intel powered by{" "}
+        <a href={SCAMWATCH_URL} target="_blank" rel="noreferrer" className="underline hover:text-fuchsia-200">ScamWatch × Nova</a>
+      </div>
+
     </Panel>
   );
 }
@@ -531,7 +573,172 @@ function ExplainRow({ label, value, tone }: { label: string; value: string; tone
   );
 }
 
-// ---------- Panel wrapper ----------
+// ---------- Threat Intelligence Database (free / copyable / stored) ----------
+type ThreatKind = "wallet" | "domain" | "email" | "phone" | "social" | "contract" | "impersonation" | "scam";
+type ThreatRecord = {
+  id: string;
+  kind: ThreatKind;
+  value: string;
+  chain?: string;
+  category: string;
+  severity: "critical" | "high" | "medium" | "low";
+  reports: number;
+  losses?: string;
+  firstSeen: string;
+  lastSeen: string;
+  tags: string[];
+  notes: string;
+  source: string;
+};
+
+const THREAT_DB: ThreatRecord[] = [
+  { id: "SWN-0001", kind: "wallet", value: "0xf7c2a91b3ce8d4a1907e5b62d9f0aa19b7c14e02", chain: "Ethereum", category: "Rug pull", severity: "critical", reports: 184, losses: "$412,000", firstSeen: "2025-08-11", lastSeen: "2026-07-14", tags: ["mixer-funded", "APT-Nebula-7"], notes: "Multi-project rug operator. Funds routed via Tornado-style mixer, laundered to CEX deposit addresses.", source: "ScamWatch × Nova" },
+  { id: "SWN-0002", kind: "wallet", value: "0xa1b3c9f0d24e78115ba9c67f8213cd45e6091a77", chain: "Ethereum", category: "Drainer wallet", severity: "critical", reports: 96, losses: "$188,500", firstSeen: "2025-11-02", lastSeen: "2026-07-18", tags: ["wallet-drainer", "phishing-payout"], notes: "Receives outputs from at least 14 phishing sites impersonating major L2 airdrops.", source: "ScamWatch × Nova" },
+  { id: "SWN-0003", kind: "wallet", value: "TQrZ9k2vJ8mYh5aBcD1fEuGpNoLiKjHgFe", chain: "Tron", category: "USDT scam", severity: "high", reports: 71, losses: "$92,300", firstSeen: "2026-01-19", lastSeen: "2026-07-17", tags: ["pig-butchering", "usdt-trc20"], notes: "Long-con romance & fake investment platform payout wallet.", source: "ScamWatch × Nova" },
+  { id: "SWN-0004", kind: "wallet", value: "9xQpV3nZ7kR2mYbCdEfGhJiKlMnOpQrStUvWxYz1234", chain: "Solana", category: "Meme rug", severity: "high", reports: 44, losses: "$61,000", firstSeen: "2026-04-06", lastSeen: "2026-07-20", tags: ["pump.fun", "sniper"], notes: "Serial deployer of pump-and-dump SPL tokens; snipes own launches.", source: "ScamWatch × Nova" },
+  { id: "SWN-0005", kind: "contract", value: "0x88b1a4c5d6e7f8091a2b3c4d5e6f7089abc12345", chain: "BSC", category: "Honeypot", severity: "critical", reports: 58, losses: "$140,000", firstSeen: "2026-02-14", lastSeen: "2026-07-15", tags: ["cannot-sell", "hidden-owner"], notes: "Contract disables transfers for all wallets except deployer proxy.", source: "ScamWatch × Nova" },
+  { id: "SWN-0006", kind: "contract", value: "0x33f9a1b2c8d0e1f2a3b4c5d6e7f8091a2b3c4d5e", chain: "Cronos", category: "Fake staking", severity: "high", reports: 27, losses: "$38,900", firstSeen: "2026-03-21", lastSeen: "2026-07-12", tags: ["withdrawal-blocked", "fee-scam"], notes: "Advertises 320% APY. Withdrawals require ever-increasing 'unlock fees'.", source: "ScamWatch × Nova" },
+  { id: "SWN-0007", kind: "domain", value: "invest-vault.io", category: "Fake investment", severity: "critical", reports: 213, losses: "$680,000", firstSeen: "2025-06-04", lastSeen: "2026-07-19", tags: ["clone-site", "fake-dashboard"], notes: "Clones legitimate broker UI. Deposits vanish; fake P&L shown in dashboard.", source: "ScamWatch × Nova" },
+  { id: "SWN-0008", kind: "domain", value: "airdrop-safe.net", category: "Wallet drainer", severity: "critical", reports: 148, losses: "$310,000", firstSeen: "2026-05-30", lastSeen: "2026-07-20", tags: ["seed-phrase", "connect-wallet"], notes: "Prompts seed phrase entry after 'wallet connect'. Shares TLS fp with 14 sister sites.", source: "ScamWatch × Nova" },
+  { id: "SWN-0009", kind: "domain", value: "meta-claim.xyz", category: "Fake airdrop", severity: "high", reports: 84, losses: "$47,200", firstSeen: "2026-06-11", lastSeen: "2026-07-18", tags: ["approve-spender", "eip-2612"], notes: "Uses malicious Permit2 signatures to drain approved tokens.", source: "ScamWatch × Nova" },
+  { id: "SWN-0010", kind: "domain", value: "binance-verify-support.help", category: "Phishing", severity: "high", reports: 65, firstSeen: "2026-06-01", lastSeen: "2026-07-17", tags: ["credential-theft", "2fa-bypass"], notes: "Fake Binance login capturing credentials and TOTP codes in real time.", source: "ScamWatch × Nova" },
+  { id: "SWN-0011", kind: "email", value: "support@moon-claim.help", category: "Phishing", severity: "high", reports: 41, firstSeen: "2026-05-19", lastSeen: "2026-07-16", tags: ["support-impersonation"], notes: "Sends 'verification' emails linking to seed-phrase drainer sites.", source: "ScamWatch × Nova" },
+  { id: "SWN-0012", kind: "email", value: "compliance@coinbaze-security.com", category: "Impersonation", severity: "medium", reports: 22, firstSeen: "2026-06-22", lastSeen: "2026-07-14", tags: ["coinbase-clone"], notes: "Typosquat domain impersonating Coinbase compliance team.", source: "ScamWatch × Nova" },
+  { id: "SWN-0013", kind: "phone", value: "+1 415-555-0139", category: "Voice phishing", severity: "medium", reports: 18, firstSeen: "2026-04-01", lastSeen: "2026-07-10", tags: ["vishing", "fake-support"], notes: "Cold-calls victims claiming to be exchange fraud desk.", source: "ScamWatch × Nova" },
+  { id: "SWN-0014", kind: "social", value: "@nebula_support", category: "Impersonation", severity: "high", reports: 62, firstSeen: "2026-03-15", lastSeen: "2026-07-19", tags: ["x-twitter", "cloned-handle"], notes: "Clones official Nebula support handle; DMs victims after complaints.", source: "ScamWatch × Nova" },
+  { id: "SWN-0015", kind: "social", value: "@vitalik_giveaway_2026", category: "Giveaway scam", severity: "high", reports: 214, losses: "$96,000", firstSeen: "2026-01-08", lastSeen: "2026-07-20", tags: ["celebrity-impersonation"], notes: "Fake Ethereum giveaway impersonating Vitalik Buterin. Sends ETH to burn wallets.", source: "ScamWatch × Nova" },
+  { id: "SWN-0016", kind: "impersonation", value: "MetaMask Support (fake)", category: "Impersonation", severity: "critical", reports: 302, losses: "$521,000", firstSeen: "2025-12-04", lastSeen: "2026-07-20", tags: ["metamask", "seed-phrase-scam"], notes: "Network of accounts across X, Discord, and Telegram impersonating MetaMask support.", source: "ScamWatch × Nova" },
+  { id: "SWN-0017", kind: "impersonation", value: "Ledger Live 'update' popup", category: "Impersonation", severity: "critical", reports: 141, losses: "$207,400", firstSeen: "2026-02-27", lastSeen: "2026-07-19", tags: ["ledger", "fake-update"], notes: "Malicious extension displays fake Ledger Live update requesting recovery phrase.", source: "ScamWatch × Nova" },
+  { id: "SWN-0018", kind: "scam", value: "Cluster: 'moonshot-airdrop'", category: "Coordinated campaign", severity: "critical", reports: 488, losses: "$1,240,000", firstSeen: "2025-10-11", lastSeen: "2026-07-20", tags: ["APT-Nebula-7", "multi-chain"], notes: "27 domains, 9 wallets, 4 fake support handles. Confidence 96%. Recommend takedown + alert.", source: "ScamWatch × Nova" },
+];
+
+const KIND_LABEL: Record<ThreatKind, string> = {
+  wallet: "Wallet", domain: "Domain", email: "Email", phone: "Phone",
+  social: "Social", contract: "Contract", impersonation: "Impersonation", scam: "Scam campaign",
+};
+const SEV_STYLE: Record<ThreatRecord["severity"], string> = {
+  critical: "text-rose-300 bg-rose-500/10 border-rose-400/30",
+  high: "text-amber-300 bg-amber-500/10 border-amber-400/30",
+  medium: "text-cyan-300 bg-cyan-500/10 border-cyan-400/30",
+  low: "text-emerald-300 bg-emerald-500/10 border-emerald-400/30",
+};
+
+function ThreatDatabase() {
+  const [query, setQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState<ThreatKind | "all">("all");
+  const [open, setOpen] = useState<string | null>(null);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return THREAT_DB.filter((r) => {
+      if (kindFilter !== "all" && r.kind !== kindFilter) return false;
+      if (!q) return true;
+      return (
+        r.value.toLowerCase().includes(q) ||
+        r.category.toLowerCase().includes(q) ||
+        (r.chain?.toLowerCase().includes(q) ?? false) ||
+        r.tags.some((t) => t.toLowerCase().includes(q)) ||
+        r.notes.toLowerCase().includes(q) ||
+        r.id.toLowerCase().includes(q)
+      );
+    });
+  }, [query, kindFilter]);
+
+  const allJson = useMemo(() => JSON.stringify(THREAT_DB, null, 2), []);
+  const kinds: (ThreatKind | "all")[] = ["all", "wallet", "contract", "domain", "email", "phone", "social", "impersonation", "scam"];
+
+  return (
+    <Panel title="Threat Intelligence Database" icon={Shield} subtitle="Stored, searchable, free to copy — wallets, scams, impersonations & more">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search wallet, domain, tag, chain, category…"
+            className="w-full glass-pill rounded-lg border border-white/10 bg-black/30 pl-8 pr-3 py-1.5 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-400/50"
+          />
+        </div>
+        <CopyBtn text={allJson} label="Copy all (JSON)" />
+        <a href={SCAMWATCH_URL} target="_blank" rel="noreferrer" className="text-[10px] font-mono uppercase tracking-widest text-fuchsia-300 hover:text-fuchsia-200 border border-fuchsia-400/30 rounded-md px-2 py-1">
+          View more on ScamWatch × Nova ↗
+        </a>
+      </div>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {kinds.map((k) => (
+          <button
+            key={k}
+            onClick={() => setKindFilter(k)}
+            className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 rounded-md border transition-colors ${
+              kindFilter === k
+                ? "bg-cyan-400/15 border-cyan-400/40 text-cyan-200"
+                : "bg-white/5 border-white/10 text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            {k === "all" ? "All" : KIND_LABEL[k]}
+          </button>
+        ))}
+        <span className="ml-auto text-[10px] font-mono uppercase tracking-widest text-slate-500 self-center">
+          {filtered.length} / {THREAT_DB.length} records
+        </span>
+      </div>
+      <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
+        {filtered.map((r) => {
+          const isOpen = open === r.id;
+          return (
+            <div key={r.id} className="glass-pill rounded-lg border border-white/5 overflow-hidden">
+              <button
+                onClick={() => setOpen(isOpen ? null : r.id)}
+                className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-white/5 transition-colors"
+              >
+                <span className={`text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded border ${SEV_STYLE[r.severity]}`}>{r.severity}</span>
+                <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded bg-cyan-400/10 text-cyan-300 border border-cyan-400/20">{KIND_LABEL[r.kind]}</span>
+                <span className="font-mono text-xs text-slate-100 truncate flex-1" title={r.value}>{r.value}</span>
+                {r.chain && <span className="hidden sm:inline text-[10px] font-mono text-slate-500">{r.chain}</span>}
+                <span className="text-[10px] font-mono text-slate-500 shrink-0">{r.reports}★</span>
+                <span className="text-slate-500 text-xs">{isOpen ? "▾" : "▸"}</span>
+              </button>
+              {isOpen && (
+                <div className="px-3 pb-3 pt-1 border-t border-white/5 bg-black/20 space-y-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div><div className="text-slate-500 font-mono uppercase tracking-widest text-[9px]">ID</div><div className="text-slate-200">{r.id}</div></div>
+                    <div><div className="text-slate-500 font-mono uppercase tracking-widest text-[9px]">Category</div><div className="text-slate-200">{r.category}</div></div>
+                    <div><div className="text-slate-500 font-mono uppercase tracking-widest text-[9px]">First seen</div><div className="text-slate-200">{r.firstSeen}</div></div>
+                    <div><div className="text-slate-500 font-mono uppercase tracking-widest text-[9px]">Last seen</div><div className="text-slate-200">{r.lastSeen}</div></div>
+                    {r.chain && <div><div className="text-slate-500 font-mono uppercase tracking-widest text-[9px]">Chain</div><div className="text-slate-200">{r.chain}</div></div>}
+                    <div><div className="text-slate-500 font-mono uppercase tracking-widest text-[9px]">Reports</div><div className="text-slate-200">{r.reports}</div></div>
+                    {r.losses && <div><div className="text-slate-500 font-mono uppercase tracking-widest text-[9px]">Losses</div><div className="text-rose-300">{r.losses}</div></div>}
+                    <div><div className="text-slate-500 font-mono uppercase tracking-widest text-[9px]">Source</div><div className="text-fuchsia-300">{r.source}</div></div>
+                  </div>
+                  <div className="text-[12px] text-slate-300 leading-relaxed">{r.notes}</div>
+                  <div className="flex flex-wrap gap-1">
+                    {r.tags.map((t) => (
+                      <span key={t} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-slate-300">#{t}</span>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <CopyBtn text={r.value} label={`Copy ${KIND_LABEL[r.kind].toLowerCase()}`} />
+                    <CopyBtn text={JSON.stringify(r, null, 2)} label="Copy record" />
+                    <CopyBtn text={`${r.id} · ${KIND_LABEL[r.kind]} · ${r.value} · ${r.category} · ${r.severity} · reports:${r.reports}${r.losses ? " · losses:" + r.losses : ""}`} label="Copy summary" />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="text-center text-xs text-slate-500 py-6 font-mono uppercase tracking-widest">No records match your search.</div>
+        )}
+      </div>
+      <div className="text-[10px] font-mono uppercase tracking-widest text-fuchsia-300/70 mt-3 text-center">
+        All records public & free · dataset stored &amp; maintained by{" "}
+        <a href={SCAMWATCH_URL} target="_blank" rel="noreferrer" className="underline hover:text-fuchsia-200">ScamWatch × Nova</a>
+      </div>
+    </Panel>
+  );
+}
+
+
 function Panel({ title, icon: Icon, subtitle, children }: { title: string; icon: typeof Brain; subtitle?: string; children: React.ReactNode }) {
   return (
     <section className="glass rounded-2xl p-4 sm:p-5 border border-white/10 relative">
@@ -582,10 +789,17 @@ function ParticleField() {
 
 function Footer() {
   return (
-    <div className="flex flex-wrap items-center justify-center gap-4 text-[10px] text-slate-500 py-6 font-mono uppercase tracking-widest">
+    <div className="flex flex-wrap items-center justify-center gap-3 text-[10px] text-slate-500 py-6 font-mono uppercase tracking-widest">
       <Link to="/" className="hover:text-cyan-400">← Back to Terminal</Link>
       <span className="text-slate-700">·</span>
-      <span>Alpha Brain · Intelligence Center · Simulated live view</span>
+      <span>Alpha Brain · Intelligence Center</span>
+      <span className="text-slate-700">·</span>
+      <a href={SCAMWATCH_URL} target="_blank" rel="noreferrer" className="text-fuchsia-300 hover:text-fuchsia-200">
+        Created &amp; powered by ScamWatch × Nova ↗
+      </a>
+      <span className="text-slate-700">·</span>
+      <span className="text-slate-400">All threat data is public & free to copy</span>
     </div>
   );
 }
+
