@@ -28,6 +28,7 @@ function AboutPage() {
 
       <div className="not-prose my-6">
         <ProductHuntCard />
+        <div className="mt-3"><ProductHuntBadge /></div>
       </div>
 
       <h2>Our trusted brands & data partners</h2>
