@@ -1,4 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { ProductHuntCard } from "@/components/ProductHuntCard";
+import { TrustedBrands } from "@/components/TrustedBrands";
+
 
 export const Route = createFileRoute("/about")({
   head: () => ({
