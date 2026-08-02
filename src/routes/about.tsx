@@ -1,6 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ProductHuntCard } from "@/components/ProductHuntCard";
+import { ProductHuntBadge } from "@/components/ProductHuntBadge";
 import { TrustedBrands } from "@/components/TrustedBrands";
+import { openCookieSettings } from "@/components/CookieConsent";
+
 
 
 export const Route = createFileRoute("/about")({
@@ -56,12 +59,17 @@ export function LegalShell({ title, children }: { title: string; children: React
         <footer className="mt-14 pt-6 border-t border-white/5 text-[11px] font-mono uppercase tracking-widest text-slate-500 flex flex-wrap gap-4">
           <Link to="/about">About</Link>
           <Link to="/faq">FAQ</Link>
+          <Link to="/library">Library</Link>
+          <Link to="/data-sources">Data Sources</Link>
           <Link to="/privacy">Privacy</Link>
           <Link to="/terms">Terms</Link>
+          <Link to="/cookies">Cookies</Link>
           <Link to="/disclaimer">Disclaimer</Link>
           <Link to="/contact">Contact</Link>
           <Link to="/download">Download</Link>
-
+          <button type="button" onClick={openCookieSettings} className="uppercase hover:text-cyan-300">
+            Cookie settings
+          </button>
         </footer>
       </div>
     </div>

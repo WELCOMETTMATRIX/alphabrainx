@@ -410,9 +410,13 @@ function Dashboard() {
         <a href="/intelligence" className="hover:text-cyan-400">🧠 Intelligence Center</a>
         <a href="/about" className="hover:text-cyan-400">About</a>
         <a href="/faq" className="hover:text-cyan-400">FAQ</a>
+        <a href="/library" className="hover:text-cyan-400">Library</a>
+        <a href="/data-sources" className="hover:text-cyan-400">Data Sources</a>
         <a href="/privacy" className="hover:text-cyan-400">Privacy</a>
         <a href="/terms" className="hover:text-cyan-400">Terms</a>
+        <a href="/cookies" className="hover:text-cyan-400">Cookies</a>
         <a href="/disclaimer" className="hover:text-cyan-400">Disclaimer</a>
+
 
         <a href="/contact" className="hover:text-cyan-400">Contact</a>
         <a href="/download" className="hover:text-cyan-400">Download for Windows</a>
