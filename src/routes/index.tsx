@@ -1,3 +1,5 @@
+import { ProductHuntBadge } from "@/components/ProductHuntBadge";
+import { openCookieSettings } from "@/components/CookieConsent";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -410,12 +412,17 @@ function Dashboard() {
         <a href="/intelligence" className="hover:text-cyan-400">🧠 Intelligence Center</a>
         <a href="/about" className="hover:text-cyan-400">About</a>
         <a href="/faq" className="hover:text-cyan-400">FAQ</a>
+        <a href="/library" className="hover:text-cyan-400">Library</a>
+        <a href="/data-sources" className="hover:text-cyan-400">Data Sources</a>
         <a href="/privacy" className="hover:text-cyan-400">Privacy</a>
         <a href="/terms" className="hover:text-cyan-400">Terms</a>
+        <a href="/cookies" className="hover:text-cyan-400">Cookies</a>
         <a href="/disclaimer" className="hover:text-cyan-400">Disclaimer</a>
+
 
         <a href="/contact" className="hover:text-cyan-400">Contact</a>
         <a href="/download" className="hover:text-cyan-400">Download for Windows</a>
+        <button type="button" onClick={openCookieSettings} className="uppercase hover:text-cyan-400">Cookie settings</button>
         <a href="https://www.producthunt.com/@dogekingmike" target="_blank" rel="noopener" className="hover:text-cyan-400">Product Hunt</a>
       </footer>
 
@@ -987,6 +994,12 @@ function AIPanel({ text, loading, error, onRun, question, setQuestion, onAsk, sy
           className="flex-1 rounded-lg glass px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-slate-500" />
         <button onClick={onAsk} disabled={loading || !question}
           className="rounded-lg glass-strong text-xs px-4 py-2 font-bold hover:bg-white/15 disabled:opacity-50 min-h-[44px] min-w-[44px]">Ask</button>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+        <ProductHuntBadge className="shrink-0" />
+        <a href="/library" className="text-[10px] font-mono uppercase tracking-widest text-slate-500 hover:text-cyan-400">
+          Library · how these reads are computed
+        </a>
       </div>
     </div>
   );

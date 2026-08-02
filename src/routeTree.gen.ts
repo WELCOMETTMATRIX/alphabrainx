@@ -11,10 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as LibraryRouteImport } from './routes/library'
 import { Route as IntelligenceRouteImport } from './routes/intelligence'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as DisclaimerRouteImport } from './routes/disclaimer'
+import { Route as DataSourcesRouteImport } from './routes/data-sources'
+import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
@@ -27,6 +30,11 @@ const TermsRoute = TermsRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryRoute = LibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IntelligenceRoute = IntelligenceRouteImport.update({
@@ -49,6 +57,16 @@ const DisclaimerRoute = DisclaimerRouteImport.update({
   path: '/disclaimer',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DataSourcesRoute = DataSourcesRouteImport.update({
+  id: '/data-sources',
+  path: '/data-sources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookiesRoute = CookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
@@ -69,10 +87,13 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/cookies': typeof CookiesRoute
+  '/data-sources': typeof DataSourcesRoute
   '/disclaimer': typeof DisclaimerRoute
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
   '/intelligence': typeof IntelligenceRoute
+  '/library': typeof LibraryRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
 }
@@ -80,10 +101,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/cookies': typeof CookiesRoute
+  '/data-sources': typeof DataSourcesRoute
   '/disclaimer': typeof DisclaimerRoute
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
   '/intelligence': typeof IntelligenceRoute
+  '/library': typeof LibraryRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
 }
@@ -92,10 +116,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/cookies': typeof CookiesRoute
+  '/data-sources': typeof DataSourcesRoute
   '/disclaimer': typeof DisclaimerRoute
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
   '/intelligence': typeof IntelligenceRoute
+  '/library': typeof LibraryRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
 }
@@ -105,10 +132,13 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/contact'
+    | '/cookies'
+    | '/data-sources'
     | '/disclaimer'
     | '/download'
     | '/faq'
     | '/intelligence'
+    | '/library'
     | '/privacy'
     | '/terms'
   fileRoutesByTo: FileRoutesByTo
@@ -116,10 +146,13 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/contact'
+    | '/cookies'
+    | '/data-sources'
     | '/disclaimer'
     | '/download'
     | '/faq'
     | '/intelligence'
+    | '/library'
     | '/privacy'
     | '/terms'
   id:
@@ -127,10 +160,13 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/contact'
+    | '/cookies'
+    | '/data-sources'
     | '/disclaimer'
     | '/download'
     | '/faq'
     | '/intelligence'
+    | '/library'
     | '/privacy'
     | '/terms'
   fileRoutesById: FileRoutesById
@@ -139,10 +175,13 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   ContactRoute: typeof ContactRoute
+  CookiesRoute: typeof CookiesRoute
+  DataSourcesRoute: typeof DataSourcesRoute
   DisclaimerRoute: typeof DisclaimerRoute
   DownloadRoute: typeof DownloadRoute
   FaqRoute: typeof FaqRoute
   IntelligenceRoute: typeof IntelligenceRoute
+  LibraryRoute: typeof LibraryRoute
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
 }
@@ -161,6 +200,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library': {
+      id: '/library'
+      path: '/library'
+      fullPath: '/library'
+      preLoaderRoute: typeof LibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/intelligence': {
@@ -191,6 +237,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DisclaimerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/data-sources': {
+      id: '/data-sources'
+      path: '/data-sources'
+      fullPath: '/data-sources'
+      preLoaderRoute: typeof DataSourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cookies': {
+      id: '/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof CookiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/contact': {
       id: '/contact'
       path: '/contact'
@@ -219,10 +279,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   ContactRoute: ContactRoute,
+  CookiesRoute: CookiesRoute,
+  DataSourcesRoute: DataSourcesRoute,
   DisclaimerRoute: DisclaimerRoute,
   DownloadRoute: DownloadRoute,
   FaqRoute: FaqRoute,
   IntelligenceRoute: IntelligenceRoute,
+  LibraryRoute: LibraryRoute,
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
 }
