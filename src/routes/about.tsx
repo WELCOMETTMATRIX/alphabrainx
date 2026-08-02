@@ -58,8 +58,10 @@ export function LegalShell({ title, children }: { title: string; children: React
           <Link to="/faq">FAQ</Link>
           <Link to="/privacy">Privacy</Link>
           <Link to="/terms">Terms</Link>
+          <Link to="/disclaimer">Disclaimer</Link>
           <Link to="/contact">Contact</Link>
           <Link to="/download">Download</Link>
+
         </footer>
       </div>
     </div>
