@@ -412,6 +412,8 @@ function Dashboard() {
         <a href="/faq" className="hover:text-cyan-400">FAQ</a>
         <a href="/privacy" className="hover:text-cyan-400">Privacy</a>
         <a href="/terms" className="hover:text-cyan-400">Terms</a>
+        <a href="/disclaimer" className="hover:text-cyan-400">Disclaimer</a>
+
         <a href="/contact" className="hover:text-cyan-400">Contact</a>
         <a href="/download" className="hover:text-cyan-400">Download for Windows</a>
         <a href="https://www.producthunt.com/@dogekingmike" target="_blank" rel="noopener" className="hover:text-cyan-400">Product Hunt</a>
