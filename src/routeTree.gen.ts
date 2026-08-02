@@ -15,6 +15,8 @@ import { Route as IntelligenceRouteImport } from './routes/intelligence'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as DisclaimerRouteImport } from './routes/disclaimer'
+import { Route as DataSourcesRouteImport } from './routes/data-sources'
+import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
@@ -49,6 +51,16 @@ const DisclaimerRoute = DisclaimerRouteImport.update({
   path: '/disclaimer',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DataSourcesRoute = DataSourcesRouteImport.update({
+  id: '/data-sources',
+  path: '/data-sources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookiesRoute = CookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
@@ -69,6 +81,8 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/cookies': typeof CookiesRoute
+  '/data-sources': typeof DataSourcesRoute
   '/disclaimer': typeof DisclaimerRoute
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
@@ -80,6 +94,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/cookies': typeof CookiesRoute
+  '/data-sources': typeof DataSourcesRoute
   '/disclaimer': typeof DisclaimerRoute
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
@@ -92,6 +108,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/cookies': typeof CookiesRoute
+  '/data-sources': typeof DataSourcesRoute
   '/disclaimer': typeof DisclaimerRoute
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
@@ -105,6 +123,8 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/contact'
+    | '/cookies'
+    | '/data-sources'
     | '/disclaimer'
     | '/download'
     | '/faq'
@@ -116,6 +136,8 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/contact'
+    | '/cookies'
+    | '/data-sources'
     | '/disclaimer'
     | '/download'
     | '/faq'
@@ -127,6 +149,8 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/contact'
+    | '/cookies'
+    | '/data-sources'
     | '/disclaimer'
     | '/download'
     | '/faq'
@@ -139,6 +163,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   ContactRoute: typeof ContactRoute
+  CookiesRoute: typeof CookiesRoute
+  DataSourcesRoute: typeof DataSourcesRoute
   DisclaimerRoute: typeof DisclaimerRoute
   DownloadRoute: typeof DownloadRoute
   FaqRoute: typeof FaqRoute
@@ -191,6 +217,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DisclaimerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/data-sources': {
+      id: '/data-sources'
+      path: '/data-sources'
+      fullPath: '/data-sources'
+      preLoaderRoute: typeof DataSourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cookies': {
+      id: '/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof CookiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/contact': {
       id: '/contact'
       path: '/contact'
@@ -219,6 +259,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   ContactRoute: ContactRoute,
+  CookiesRoute: CookiesRoute,
+  DataSourcesRoute: DataSourcesRoute,
   DisclaimerRoute: DisclaimerRoute,
   DownloadRoute: DownloadRoute,
   FaqRoute: FaqRoute,
