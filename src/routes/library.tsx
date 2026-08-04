@@ -361,12 +361,56 @@ function LibraryPage() {
                   </span>
                 </button>
                 {isOpen && (
-                  <ul className="list-disc space-y-1.5 border-t border-white/5 px-8 py-3 text-xs leading-relaxed text-slate-300">
-                    {t.detail.map((d) => (
-                      <li key={d}>{d}</li>
-                    ))}
-                  </ul>
+                  <div className="border-t border-white/5">
+                    <ul className="list-disc space-y-1.5 px-8 py-3 text-xs leading-relaxed text-slate-300">
+                      {t.detail.map((d) => (
+                        <li key={d}>{d}</li>
+                      ))}
+                    </ul>
+
+                    <div className="border-t border-white/5 px-4 py-3">
+                      <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">
+                        Sources &amp; citations
+                      </p>
+                      <ul className="mt-2 space-y-1.5">
+                        {t.sources.map((s) => (
+                          <li key={s.label} className="text-xs leading-relaxed text-slate-400">
+                            <a
+                              href={s.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-semibold text-cyan-400 hover:text-cyan-300"
+                            >
+                              {s.label}
+                            </a>{" "}
+                            — {s.note}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="border-t border-white/5 px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500">
+                          Confidence
+                        </span>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest ${
+                            t.confidence.level === "High"
+                              ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-300"
+                              : t.confidence.level === "Medium"
+                                ? "border-amber-400/40 bg-amber-500/10 text-amber-300"
+                                : "border-rose-400/40 bg-rose-500/10 text-rose-300"
+                          }`}
+                        >
+                          {t.confidence.level}
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-xs leading-relaxed text-slate-400">{t.confidence.note}</p>
+                    </div>
+                  </div>
                 )}
+
               </div>
             );
           })}
