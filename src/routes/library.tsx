@@ -309,7 +309,20 @@ function LibraryPage() {
     return TOPICS.filter((t) => {
       if (cat !== "All" && t.cat !== cat) return false;
       if (!needle) return true;
-      return (t.title + " " + t.body + " " + t.detail.join(" ")).toLowerCase().includes(needle);
+      const hay =
+        t.title +
+        " " +
+        t.body +
+        " " +
+        t.detail.join(" ") +
+        " " +
+        t.sources.map((s) => s.label + " " + s.note).join(" ") +
+        " " +
+        t.confidence.level +
+        " " +
+        t.confidence.note;
+      return hay.toLowerCase().includes(needle);
+
     });
   }, [q, cat]);
 
