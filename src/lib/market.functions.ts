@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { generateText } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import { assertAiBudget, clampPrompt } from "./ai-rate-limit.server";
+import { localBrief, localScan } from "./local-brain";
 
 
 
@@ -361,7 +362,6 @@ export const aiMarketScan = createServerFn({ method: "POST" })
   assertAiBudget("scan");
   const scope = data.scope ?? "cross";
   const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("Missing LOVABLE_API_KEY");
 
 
   const wantCrypto = scope === "cross" || scope === "crypto";
@@ -410,6 +410,14 @@ export const aiMarketScan = createServerFn({ method: "POST" })
   const scopeLabel = scope === "cross" ? "All Markets (stocks + crypto)"
     : scope === "stocks" ? "Stocks only" : scope === "crypto" ? "Crypto only" : "Watchlist";
 
+  const fallback = () => ({
+    scan: localScan({ pulse, cryptoMovers, stockMovers }),
+    raw: "",
+    engine: "local" as const,
+    pulse, cryptoMovers, stockMovers,
+  });
+  if (!key) return fallback();
+
   const gateway = createLovableAiGatewayProvider(key);
   const prompt = `You are Alpha Brain — a sharp cross-market scanner. Scope: ${scopeLabel}. Output STRICT JSON only, no prose, no markdown fences.
 
@@ -431,10 +439,13 @@ Return this exact JSON shape:
 }
 Include 5 trending, 3 avoid, 3 ideas.${scope === "cross" ? " Mix stocks & crypto." : scope === "stocks" ? " Stocks only." : scope === "crypto" ? " Crypto only." : ""}`;
 
-  const { text } = await generateText({
-    model: gateway("google/gemini-3-flash-preview"),
-    prompt,
-  });
+  let text = "";
+  try {
+    const r = await generateText({ model: gateway("google/gemini-3-flash-preview"), prompt });
+    text = r.text;
+  } catch {
+    return fallback();
+  }
 
   // strip code fences if any
   const cleaned = text.replace(/```json|```/g, "").trim();
@@ -450,7 +461,8 @@ Include 5 trending, 3 avoid, 3 ideas.${scope === "cross" ? " Mix stocks & crypto
     const m = cleaned.match(/\{[\s\S]*\}/);
     if (m) { try { parsed = JSON.parse(m[0]) as ScanResult; } catch { /* noop */ } }
   }
-  return { scan: parsed, raw: text, pulse, cryptoMovers, stockMovers };
+  if (!parsed) return fallback();
+  return { scan: parsed, raw: text, engine: "ai" as const, pulse, cryptoMovers, stockMovers };
 });
 
 // ---- AI BRAIN ----
@@ -468,8 +480,14 @@ export const aiAnalyze = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     assertAiBudget("analyze");
     const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
     const question = data.question ? clampPrompt(data.question, 500) : undefined;
+    const localAnalysis = () => localBrief({
+      symbol: data.symbol ?? data.assets[0]?.symbol ?? "asset",
+      assets: data.assets ?? [],
+      candles: data.candles,
+      question,
+    });
+    if (!key) return { analysis: localAnalysis(), engine: "local" as const };
 
 
     // Compute rich technicals for the focus symbol
@@ -518,11 +536,15 @@ For each: entry zone, invalidation, first target, and the trigger to watch.
 ## ⚠️ Risks & What Would Flip the Thesis
 Concrete catalysts, not vague warnings.`}`;
 
-    const { text } = await generateText({
-      model: gateway("google/gemini-3-flash-preview"),
-      prompt,
-    });
-    return { analysis: text };
+    try {
+      const { text } = await generateText({
+        model: gateway("google/gemini-3-flash-preview"),
+        prompt,
+      });
+      return { analysis: text, engine: "ai" as const };
+    } catch {
+      return { analysis: localAnalysis(), engine: "local" as const };
+    }
   });
 
 // ---- Indicator helpers ----
