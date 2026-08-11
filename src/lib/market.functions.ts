@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { generateText } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import { assertAiBudget, clampPrompt } from "./ai-rate-limit.server";
+import { localBrief, localScan } from "./local-brain";
 
 
 
