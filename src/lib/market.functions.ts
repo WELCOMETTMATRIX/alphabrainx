@@ -362,7 +362,6 @@ export const aiMarketScan = createServerFn({ method: "POST" })
   assertAiBudget("scan");
   const scope = data.scope ?? "cross";
   const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("Missing LOVABLE_API_KEY");
 
 
   const wantCrypto = scope === "cross" || scope === "crypto";
