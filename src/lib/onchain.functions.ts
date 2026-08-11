@@ -410,36 +410,34 @@ export const aiOnchainAnalyze = createServerFn({ method: "POST" })
     assertAiBudget("onchain");
     const t = data.token;
 
-    // ---- Deterministic risk heuristics (0 safest → 100 riskiest) ----
-    let risk = 0;
-    const reasons: string[] = [];
+    // ---- Deterministic quality/scam engine (shared with list filtering) ----
+    const tx = data.txns24h;
+    const quality = scoreToken({
+      ...t,
+      buys24h: tx?.buys ?? t.buys24h,
+      sells24h: tx?.sells ?? t.sells24h,
+    });
     const liq = t.liquidityUsd ?? 0;
     const vol = t.volume24h ?? 0;
     const ageDays = t.createdAt ? (Date.now() - t.createdAt) / 86_400_000 : 0;
-    if (liq < 10_000) { risk += 40; reasons.push("very low liquidity (<$10k)"); }
-    else if (liq < 50_000) { risk += 25; reasons.push("thin liquidity (<$50k)"); }
-    else if (liq < 250_000) { risk += 10; reasons.push("moderate liquidity"); }
-    if (ageDays > 0 && ageDays < 1) { risk += 25; reasons.push("<24h old pair"); }
-    else if (ageDays < 7) { risk += 12; reasons.push("<1w old pair"); }
-    if (vol > 0 && liq > 0 && vol / liq > 10) { risk += 15; reasons.push("volume/liquidity ratio >10 (possible wash)"); }
-    if (t.fdv && liq && t.fdv / liq > 500) { risk += 15; reasons.push("FDV >>liquidity"); }
-    const tx = data.txns24h;
-    if (tx && tx.buys + tx.sells < 20) { risk += 10; reasons.push("very few 24h trades"); }
-    risk = Math.min(100, Math.max(0, risk));
-    const label = risk >= 70 ? "high" : risk >= 40 ? "medium" : "low";
+    const risk = quality.risk;
+    const label = quality.label;
+    const reasons = quality.flags;
 
-    // ---- AI thesis ----
+    // ---- Thesis: AI when available, deterministic Local Engine otherwise ----
+    const localThesis = () => localOnchainThesis(t, quality);
     const key = process.env.LOVABLE_API_KEY;
     let thesis = "";
+    let engine: "ai" | "local" = "local";
     if (key) {
       const gateway = createLovableAiGatewayProvider(key);
       const pc = data.priceChange ?? {};
       const prompt = `You are Alpha Brain — an elite onchain analyst. Output concise markdown, no fluff.
-Token: **${t.symbol}** (${t.name}) on **${t.chain}**
+Token: **${t.symbol}** (${t.name}) on **${chainLabel(t.chain)}**
 Price: $${t.price}  |  24h: ${t.priceChange24h?.toFixed(2)}%  |  1h: ${pc.h1 ?? "?"}%  |  6h: ${pc.h6 ?? "?"}%
 Liquidity: $${Math.round(liq).toLocaleString()}  |  Vol24h: $${Math.round(vol).toLocaleString()}  |  FDV: $${t.fdv ? Math.round(t.fdv).toLocaleString() : "?"}
-Pair age: ${ageDays.toFixed(1)}d  |  24h buys/sells: ${tx?.buys ?? "?"} / ${tx?.sells ?? "?"}
-Deterministic risk score: ${risk}/100 (${label}) — ${reasons.join("; ") || "no major flags"}
+Pair age: ${ageDays.toFixed(1)}d  |  24h buys/sells: ${tx?.buys ?? t.buys24h ?? "?"} / ${tx?.sells ?? t.sells24h ?? "?"}  |  pairs: ${t.pairCount ?? "?"}
+Quality engine: score ${quality.score}/100, risk ${risk}/100 (${label}) — flags: ${reasons.join("; ") || "none"}; positives: ${quality.positives.join("; ") || "none"}
 
 Return:
 ## Thesis
@@ -454,9 +452,12 @@ Bullet the top 2 concrete risks.`;
       try {
         const { text } = await generateText({ model: gateway("google/gemini-3-flash-preview"), prompt });
         thesis = text;
-      } catch (e) {
-        thesis = `_AI unavailable: ${(e as Error).message}_`;
+        engine = "ai";
+      } catch {
+        thesis = localThesis();
       }
+    } else {
+      thesis = localThesis();
     }
-    return { risk, riskLabel: label, reasons, thesis };
+    return { risk, riskLabel: label, reasons, thesis, engine, quality };
   });
