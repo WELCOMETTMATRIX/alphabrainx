@@ -410,6 +410,14 @@ export const aiMarketScan = createServerFn({ method: "POST" })
   const scopeLabel = scope === "cross" ? "All Markets (stocks + crypto)"
     : scope === "stocks" ? "Stocks only" : scope === "crypto" ? "Crypto only" : "Watchlist";
 
+  const fallback = () => ({
+    scan: localScan({ pulse, cryptoMovers, stockMovers }),
+    raw: "",
+    engine: "local" as const,
+    pulse, cryptoMovers, stockMovers,
+  });
+  if (!key) return fallback();
+
   const gateway = createLovableAiGatewayProvider(key);
   const prompt = `You are Alpha Brain — a sharp cross-market scanner. Scope: ${scopeLabel}. Output STRICT JSON only, no prose, no markdown fences.
 
