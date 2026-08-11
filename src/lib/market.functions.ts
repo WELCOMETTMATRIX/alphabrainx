@@ -439,10 +439,13 @@ Return this exact JSON shape:
 }
 Include 5 trending, 3 avoid, 3 ideas.${scope === "cross" ? " Mix stocks & crypto." : scope === "stocks" ? " Stocks only." : scope === "crypto" ? " Crypto only." : ""}`;
 
-  const { text } = await generateText({
-    model: gateway("google/gemini-3-flash-preview"),
-    prompt,
-  });
+  let text = "";
+  try {
+    const r = await generateText({ model: gateway("google/gemini-3-flash-preview"), prompt });
+    text = r.text;
+  } catch {
+    return fallback();
+  }
 
   // strip code fences if any
   const cleaned = text.replace(/```json|```/g, "").trim();
@@ -458,7 +461,8 @@ Include 5 trending, 3 avoid, 3 ideas.${scope === "cross" ? " Mix stocks & crypto
     const m = cleaned.match(/\{[\s\S]*\}/);
     if (m) { try { parsed = JSON.parse(m[0]) as ScanResult; } catch { /* noop */ } }
   }
-  return { scan: parsed, raw: text, pulse, cryptoMovers, stockMovers };
+  if (!parsed) return fallback();
+  return { scan: parsed, raw: text, engine: "ai" as const, pulse, cryptoMovers, stockMovers };
 });
 
 // ---- AI BRAIN ----
