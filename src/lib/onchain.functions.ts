@@ -225,29 +225,36 @@ export const getOnchainToken = createServerFn({ method: "GET" })
   });
 
 // Expand a raw list of {chainId, tokenAddress, icon?, description?} entries into hydrated tokens.
+// Batched to keep memory + upstream pressure low; deduped + cached upstream.
 async function hydrateOnchainList(
   raw: Array<{ chainId: string; tokenAddress: string; icon?: string; description?: string }>,
   limit: number,
 ): Promise<(TokenLite & { description?: string })[]> {
   const arr = raw.slice(0, limit);
-  const results = await Promise.all(arr.map(async (b) => {
-    try {
-      const r = await jget(`${DS}/latest/dex/tokens/${b.tokenAddress}`, 30_000);
-      const pairs = ((r?.pairs ?? []) as DsPair[]).filter((p) => p.chainId === b.chainId);
-      const best = pickBestPair(pairs);
-      return best ? { ...pairToToken(best), icon: b.icon ?? best.info?.imageUrl, description: b.description } : null;
-    } catch { return null; }
-  }));
-  return results.filter(Boolean) as (TokenLite & { description?: string })[];
+  const out: (TokenLite & { description?: string })[] = [];
+  const BATCH = 8;
+  for (let i = 0; i < arr.length; i += BATCH) {
+    const chunk = arr.slice(i, i + BATCH);
+    const results = await Promise.all(chunk.map(async (b) => {
+      try {
+        const r = await jget(`${DS}/latest/dex/tokens/${b.tokenAddress}`, 30_000);
+        const pairs = ((r?.pairs ?? []) as DsPair[]).filter((p) => p.chainId === b.chainId);
+        const best = pickBestPair(pairs);
+        return best
+          ? { ...pairToToken(best, pairs.length), icon: b.icon ?? best.info?.imageUrl, description: b.description }
+          : null;
+      } catch { return null; }
+    }));
+    for (const r of results) if (r) out.push(r);
+  }
+  return out;
 }
 
-// ---- Trending (DexScreener boosts, with fallback to top-boosts + new profiles) ----
-export const getOnchainTrending = createServerFn({ method: "GET" }).handler(async () => {
-  const sources: Array<Promise<any[]>> = [
+async function collectTrendingRaw(): Promise<any[]> {
+  const [latest, top] = await Promise.all([
     jget(`${DS}/token-boosts/latest/v1`, 60_000).catch(() => []),
     jget(`${DS}/token-boosts/top/v1`, 60_000).catch(() => []),
-  ];
-  const [latest, top] = await Promise.all(sources);
+  ]);
   const seen = new Set<string>();
   const merged: any[] = [];
   for (const src of [latest, top]) {
@@ -258,37 +265,115 @@ export const getOnchainTrending = createServerFn({ method: "GET" }).handler(asyn
       merged.push(b);
     }
   }
-  let out = await hydrateOnchainList(merged, 28);
-  if (!out.length) {
-    // Absolute fallback: try new-profile listings so the tab is never empty.
-    const profiles = await jget(`${DS}/token-profiles/latest/v1`, 60_000).catch(() => [] as any[]);
-    out = await hydrateOnchainList(Array.isArray(profiles) ? profiles : [], 28);
-  }
-  return out as TokenLite[];
-});
+  return merged;
+}
+
+// ---- Trending (DexScreener boosts, with fallback to top-boosts + new profiles) ----
+export const getOnchainTrending = createServerFn({ method: "GET" })
+  .inputValidator((d: ListOpts | undefined) => d ?? {})
+  .handler(async ({ data }) => {
+    const merged = await collectTrendingRaw();
+    let out = await hydrateOnchainList(merged, 40);
+    if (!out.length) {
+      // Absolute fallback: try new-profile listings so the tab is never empty.
+      const profiles = await jget(`${DS}/token-profiles/latest/v1`, 60_000).catch(() => [] as any[]);
+      out = await hydrateOnchainList(Array.isArray(profiles) ? profiles : [], 40);
+    }
+    const refined = refine(out, { ...data, pageSize: data.pageSize ?? 28, sort: data.sort ?? "quality" });
+    // Never return an empty screen: if the quality gate wipes everything, fall back to raw list.
+    return (refined.items.length ? refined.items : out.slice(0, 28)) as TokenLite[];
+  });
+
+/** Paginated trending with quality gate + totals. */
+export const getOnchainTrendingPaged = createServerFn({ method: "GET" })
+  .inputValidator((d: ListOpts | undefined) => d ?? {})
+  .handler(async ({ data }) => {
+    const merged = await collectTrendingRaw();
+    const out = await hydrateOnchainList(merged, 60);
+    return refine(out, data);
+  });
 
 // ---- New token profiles (latest listings, with fallback to boosts) ----
-export const getOnchainNew = createServerFn({ method: "GET" }).handler(async () => {
-  const list = await jget(`${DS}/token-profiles/latest/v1`, 60_000).catch(() => [] as any[]);
-  let out = await hydrateOnchainList(Array.isArray(list) ? list : [], 28);
-  if (!out.length) {
-    const boosts = await jget(`${DS}/token-boosts/latest/v1`, 60_000).catch(() => [] as any[]);
-    out = await hydrateOnchainList(Array.isArray(boosts) ? boosts : [], 28);
-  }
-  return out as (TokenLite & { description?: string })[];
-});
+export const getOnchainNew = createServerFn({ method: "GET" })
+  .inputValidator((d: ListOpts | undefined) => d ?? {})
+  .handler(async ({ data }) => {
+    const list = await jget(`${DS}/token-profiles/latest/v1`, 60_000).catch(() => [] as any[]);
+    let out = await hydrateOnchainList(Array.isArray(list) ? list : [], 40);
+    if (!out.length) {
+      const boosts = await jget(`${DS}/token-boosts/latest/v1`, 60_000).catch(() => [] as any[]);
+      out = await hydrateOnchainList(Array.isArray(boosts) ? boosts : [], 40);
+    }
+    const refined = refine(out, { ...data, pageSize: data.pageSize ?? 28, sort: data.sort ?? "new", includeRisky: data.includeRisky ?? true });
+    return (refined.items.length ? refined.items : out.slice(0, 28)) as (TokenLite & { description?: string })[];
+  });
 
+/** Automatic cross-chain token detection: top pools per network via GeckoTerminal. */
+export const discoverOnchainTokens = createServerFn({ method: "GET" })
+  .inputValidator((d: { chains?: string[]; page?: number; pageSize?: number; minScore?: number } | undefined) => d ?? {})
+  .handler(async ({ data }) => {
+    const chains = (data.chains?.length ? data.chains : ["ethereum", "solana", "base", "bsc", "arbitrum"]).slice(0, 6);
+    const perChain = await Promise.all(chains.map(async (c) => {
+      const net = gtNetwork(c);
+      const r = await jgetAny([
+        `${GT}/networks/${net}/trending_pools?page=1`,
+        `${GT}/networks/${net}/pools?page=1`,
+      ], 60_000).catch(() => null);
+      const rows = (r?.data ?? []) as Array<{ attributes: any }>;
+      return rows.slice(0, 12).map((p) => {
+        const a = p.attributes ?? {};
+        const [name] = String(a.name ?? "").split("/");
+        const token: TokenLite = {
+          chain: c,
+          chainLabel: chainLabel(c),
+          address: String(a.address ?? ""),
+          name: String(a.name ?? name ?? "").trim(),
+          symbol: String(name ?? "").trim(),
+          price: parseFloat(a.base_token_price_usd ?? "0") || undefined,
+          priceChange24h: parseFloat(a.price_change_percentage?.h24 ?? "0") || 0,
+          priceChangeH1: parseFloat(a.price_change_percentage?.h1 ?? "0") || 0,
+          liquidityUsd: parseFloat(a.reserve_in_usd ?? "0") || 0,
+          volume24h: parseFloat(a.volume_usd?.h24 ?? "0") || 0,
+          fdv: parseFloat(a.fdv_usd ?? "0") || undefined,
+          marketCap: parseFloat(a.market_cap_usd ?? "0") || undefined,
+          pairAddress: String(a.address ?? ""),
+          createdAt: a.pool_created_at ? Date.parse(a.pool_created_at) : undefined,
+          buys24h: a.transactions?.h24?.buys,
+          sells24h: a.transactions?.h24?.sells,
+        };
+        token.quality = scoreToken(token);
+        return token;
+      });
+    }));
+    return refine(perChain.flat(), { page: data.page, pageSize: data.pageSize ?? 30, minScore: data.minScore, sort: "quality" });
+  });
+
+/** Standalone quality/scam report for one token. */
+export const getTokenQuality = createServerFn({ method: "GET" })
+  .inputValidator((d: { address: string; chain?: string }) => d)
+  .handler(async ({ data }) => {
+    const r = await jget(`${DS}/latest/dex/tokens/${data.address}`, 20_000).catch(() => null);
+    let pairs = ((r?.pairs ?? []) as DsPair[]);
+    if (data.chain) pairs = pairs.filter((p) => p.chainId === data.chain);
+    const best = pickBestPair(pairs);
+    if (!best) return null;
+    const token = pairToToken(best, pairs.length);
+    return { token, quality: token.quality! };
+  });
 
 // ---- OHLCV candles for a pool ----
 export const getOnchainCandles = createServerFn({ method: "GET" })
   .inputValidator((d: { chain: string; poolAddress: string; timeframe?: "minute" | "hour" | "day"; aggregate?: number; limit?: number }) => d)
   .handler(async ({ data }) => {
-    const net = CHAIN_TO_GT[data.chain] ?? data.chain;
+    const net = gtNetwork(data.chain);
     const tf = data.timeframe ?? "hour";
     const agg = data.aggregate ?? 1;
     const limit = Math.min(data.limit ?? 200, 1000);
-    const url = `${GT}/networks/${net}/pools/${data.poolAddress}/ohlcv/${tf}?aggregate=${agg}&limit=${limit}&currency=usd`;
-    const r = await jget(url, 20_000).catch(() => null);
+    const base = `${GT}/networks/${net}/pools/${data.poolAddress}/ohlcv`;
+    const r = await jgetAny([
+      `${base}/${tf}?aggregate=${agg}&limit=${limit}&currency=usd`,
+      `${base}/${tf}?aggregate=${agg}&limit=${limit}`,
+      `${base}/hour?aggregate=1&limit=${limit}&currency=usd`,
+    ], 20_000).catch(() => null);
     const rows = (r?.data?.attributes?.ohlcv_list ?? []) as Array<[number, number, number, number, number, number]>;
     // ohlcv_list is [timestamp, open, high, low, close, volume]
     return rows
@@ -300,7 +385,7 @@ export const getOnchainCandles = createServerFn({ method: "GET" })
 export const getOnchainTrades = createServerFn({ method: "GET" })
   .inputValidator((d: { chain: string; poolAddress: string }) => d)
   .handler(async ({ data }) => {
-    const net = CHAIN_TO_GT[data.chain] ?? data.chain;
+    const net = gtNetwork(data.chain);
     const url = `${GT}/networks/${net}/pools/${data.poolAddress}/trades?trade_volume_in_usd_greater_than=0`;
     const r = await jget(url, 15_000).catch(() => null);
     const rows = (r?.data ?? []) as Array<{ attributes: any }>;
