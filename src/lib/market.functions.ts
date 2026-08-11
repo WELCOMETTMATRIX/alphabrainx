@@ -3,6 +3,7 @@ import { generateText } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import { assertAiBudget, clampPrompt } from "./ai-rate-limit.server";
 import { localBrief, localScan } from "./local-brain";
+import { classifyToken } from "./token-quality";
 
 
 
@@ -212,21 +213,93 @@ export const getTopCryptoMovers = createServerFn({ method: "GET" }).handler(asyn
 
 // ---- FULL CRYPTO UNIVERSE (Crypto.com) ----
 export const getAllCryptoTokens = createServerFn({ method: "GET" }).handler(async () => {
-  const rows = await cdcxTickers();
-  return rows
-    .filter((t) => t.i.endsWith("_USDT") || t.i.endsWith("_USD"))
-    .map((t) => ({
-      symbol: fromCdcxInstrument(t.i),        // e.g. BTCUSDT
-      instrument: t.i,                        // e.g. BTC_USDT
-      base: t.i.split("_")[0],
-      price: parseFloat(t.a ?? "0"),
-      changePercent: parseFloat(t.c ?? "0") * 100,
-      volume: parseFloat(t.vv ?? "0"),
-      high: parseFloat(t.h ?? "0"),
-      low: parseFloat(t.l ?? "0"),
-    }))
-    .filter((t) => t.price > 0)
-    .sort((a, b) => b.volume - a.volume);
+  const rows = await cdcxTickers().catch((error) => {
+    console.warn("[DISCOVERY] Crypto.com ticker load failed", { message: (error as Error).message });
+    return [] as CdcxTicker[];
+  });
+
+  const discovered = rows.filter((t) => t.i.endsWith("_USDT") || t.i.endsWith("_USD") || t.i.endsWith("_USDC"));
+  console.info("[DISCOVERY] Tokens discovered:", discovered.length);
+
+  const byBase = new Map<string, CdcxTicker[]>();
+  for (const t of discovered) {
+    const [base] = t.i.split("_");
+    if (!base || !parseFloat(t.a ?? "0")) continue;
+    byBase.set(base, [...(byBase.get(base) ?? []), t]);
+  }
+
+  const normalized = Array.from(byBase.entries()).map(([base, pairs]) => {
+    const sorted = [...pairs].sort((a, b) => parseFloat(b.vv ?? "0") - parseFloat(a.vv ?? "0"));
+    const primary = sorted[0];
+    const price = parseFloat(primary.a ?? "0");
+    const bid = parseFloat(primary.b ?? "0");
+    const ask = parseFloat(primary.k ?? "0");
+    const prices = sorted.map((p) => parseFloat(p.a ?? "0")).filter((n) => n > 0);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const priceDiscrepancyPct = prices.length > 1 && min > 0 ? ((max - min) / min) * 100 : 0;
+    const volume = sorted.reduce((sum, p) => sum + (parseFloat(p.vv ?? "0") || 0), 0);
+    const high = Math.max(...sorted.map((p) => parseFloat(p.h ?? "0") || 0));
+    const lowValues = sorted.map((p) => parseFloat(p.l ?? "0") || 0).filter((n) => n > 0);
+    const low = lowValues.length ? Math.min(...lowValues) : 0;
+    const spreadPct = bid > 0 && ask > 0 ? ((ask - bid) / ((ask + bid) / 2)) * 100 : undefined;
+    const quality = classifyToken({
+      symbol: base,
+      price,
+      priceChange24h: parseFloat(primary.c ?? "0") * 100,
+      liquidityUsd: Math.max(volume * 0.015, bid && ask ? (bid + ask) * 50 : 0),
+      volume24h: volume,
+      pairCount: sorted.length,
+      sourceCount: sorted.length > 1 ? 2 : 1,
+      priceSourceCount: prices.length,
+      priceDiscrepancyPct,
+      spreadPct,
+      quoteAsset: primary.i.split("_")[1],
+      exchangeCount: 1,
+    });
+    return {
+      symbol: fromCdcxInstrument(primary.i),
+      instrument: primary.i,
+      base,
+      price,
+      changePercent: parseFloat(primary.c ?? "0") * 100,
+      volume,
+      high,
+      low,
+      pairCount: sorted.length,
+      verification: quality.intelligence.verificationTier,
+      confidenceScore: quality.intelligence.confidenceScore,
+      intelligenceScore: quality.intelligence.intelligenceScore,
+      riskScore: quality.intelligence.riskScore,
+      categories: quality.intelligence.categories,
+      quality,
+      alerts: quality.intelligence.alerts,
+    };
+  });
+
+  const valid = normalized.filter((t) => t.price > 0 && t.volume > 0 && Number.isFinite(t.changePercent));
+  const ranked = valid.sort((a, b) => b.intelligenceScore - a.intelligenceScore || b.volume - a.volume);
+  const counts = ranked.reduce((acc, t) => ({ ...acc, [t.verification]: (acc[t.verification] ?? 0) + 1 }), {} as Record<string, number>);
+  console.info("[VALIDATION] Valid tokens:", valid.length);
+  console.info("[VERIFICATION]", counts);
+  console.info("[INTELLIGENCE] Analyzed:", ranked.length);
+  console.info("[ALERTS] New signals:", ranked.reduce((n, t) => n + t.alerts.length, 0));
+
+  return ranked;
+});
+
+export const getBestCryptoTokens = createServerFn({ method: "GET" }).handler(async () => {
+  const tokens = await getAllCryptoTokens();
+  const pick = (fn: (t: Awaited<ReturnType<typeof getAllCryptoTokens>>[number]) => boolean) => tokens.filter(fn).slice(0, 25);
+  return {
+    verified: pick((t) => t.categories.includes("verified")),
+    community: pick((t) => t.categories.includes("community")),
+    trending: pick((t) => t.categories.includes("trending")),
+    highVolume: [...tokens].sort((a, b) => b.volume - a.volume).slice(0, 25),
+    emerging: pick((t) => t.categories.includes("emerging")),
+    highRisk: pick((t) => t.categories.includes("highRisk")),
+    generatedAt: new Date().toISOString(),
+  };
 });
 
 

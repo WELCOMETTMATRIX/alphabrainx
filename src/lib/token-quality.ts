@@ -20,6 +20,12 @@ export type QualityInput = {
   pairCount?: number;
   hasSocials?: boolean;
   hasWebsite?: boolean;
+  sourceCount?: number;
+  priceSourceCount?: number;
+  priceDiscrepancyPct?: number;
+  spreadPct?: number;
+  quoteAsset?: string;
+  exchangeCount?: number;
 };
 
 export type QualityReport = {
@@ -105,6 +111,22 @@ export function scoreToken(t: QualityInput): QualityReport {
     else if (fdvRatio < 40) { positives.push("FDV supported by liquidity"); }
   }
 
+  // ---- Multi-source / market-data consistency ----
+  const sources = t.sourceCount ?? 1;
+  if (sources >= 2) positives.push(`${sources} independent market sources`);
+  else { risk += 8; flags.push("single-source market data"); }
+
+  const discrepancy = t.priceDiscrepancyPct ?? 0;
+  if (discrepancy > 15) { risk += 24; flags.push(`cross-source price discrepancy ${discrepancy.toFixed(1)}%`); }
+  else if (discrepancy > 5) { risk += 12; flags.push(`moderate price discrepancy ${discrepancy.toFixed(1)}%`); }
+  else if ((t.priceSourceCount ?? 0) >= 2) positives.push("price confirmed across sources");
+
+  const spread = t.spreadPct ?? 0;
+  if (spread > 4) { risk += 16; flags.push(`wide bid/ask spread ${spread.toFixed(2)}%`); }
+  else if (spread > 0 && spread < 0.75) positives.push("tight quoted spread");
+
+  if ((t.exchangeCount ?? t.pairCount ?? 0) >= 2) positives.push("multi-venue availability");
+
   // ---- Volatility spike ----
   const ch24 = t.priceChange24h ?? 0;
   if (Math.abs(ch24) > 300) { risk += 14; flags.push(`extreme 24h move (${ch24.toFixed(0)}%)`); }
@@ -127,7 +149,9 @@ export function scoreToken(t: QualityInput): QualityReport {
   if (trades > 0) signals++;
   if (ageDays !== undefined) signals++;
   if (fdv > 0) signals++;
-  const confidence = Math.round((signals / 5) * 100) / 100;
+  if (sources >= 2) signals++;
+  if (spread > 0) signals++;
+  const confidence = Math.round((Math.min(signals, 7) / 7) * 100) / 100;
 
   const label: QualityReport["label"] =
     risk >= 75 ? "suspicious"
@@ -154,4 +178,66 @@ export function filterLegitimate<T extends QualityInput>(
   return tokens
     .map((t) => ({ ...t, quality: scoreToken(t) }))
     .filter((t) => (opts.includeFiltered ? true : !t.quality.filtered) && t.quality.score >= minScore);
+}
+
+
+export type VerificationTier = "verified" | "community" | "unverified" | "high-risk";
+export type RankingCategory = "verified" | "community" | "trending" | "highVolume" | "emerging" | "highRisk";
+
+export type TokenIntelligence = {
+  intelligenceScore: number;
+  confidenceScore: number;
+  verificationTier: VerificationTier;
+  categories: RankingCategory[];
+  marketQuality: number;
+  liquidityScore: number;
+  volumeScore: number;
+  momentumScore: number;
+  communityScore: number;
+  reliabilityScore: number;
+  riskScore: number;
+  alerts: Array<{ type: string; severity: "info" | "warning" | "critical"; message: string }>;
+};
+
+const log10Score = (value: number, floor: number, ceiling: number) => {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return clamp(((Math.log10(value) - Math.log10(floor)) / (Math.log10(ceiling) - Math.log10(floor))) * 100);
+};
+
+export function classifyToken(t: QualityInput): QualityReport & { intelligence: TokenIntelligence } {
+  const quality = scoreToken(t);
+  const liq = t.liquidityUsd ?? 0;
+  const vol = t.volume24h ?? 0;
+  const ch24 = t.priceChange24h ?? 0;
+  const range = Math.abs((t.priceChangeH6 ?? ch24 / 4)) + Math.abs((t.priceChangeH1 ?? ch24 / 24));
+  const liquidityScore = log10Score(liq, 5_000, 50_000_000);
+  const volumeScore = log10Score(vol, 25_000, 1_000_000_000);
+  const momentumScore = clamp(45 + ch24 * 1.6 - Math.max(0, Math.abs(ch24) - 35) * 1.2 - range * 0.2);
+  const reliabilityScore = clamp((t.sourceCount ?? 1) * 22 + (t.priceSourceCount ?? 0) * 16 - (t.priceDiscrepancyPct ?? 0) * 3 + (t.spreadPct && t.spreadPct < 1 ? 10 : 0));
+  const communityScore = clamp(volumeScore * 0.35 + liquidityScore * 0.25 + Math.min(100, (t.buys24h ?? 0) + (t.sells24h ?? 0)) * 0.2 + ((t.hasSocials || t.hasWebsite) ? 15 : 0) + Math.max(0, ch24) * 0.4);
+  const marketQuality = clamp(liquidityScore * 0.38 + volumeScore * 0.28 + reliabilityScore * 0.24 + momentumScore * 0.1);
+  const riskScore = clamp(quality.risk + Math.max(0, 35 - reliabilityScore) * 0.35 + Math.max(0, 20_000 - liq) / 1_000);
+  const intelligenceScore = clamp(marketQuality * 0.26 + liquidityScore * 0.16 + volumeScore * 0.14 + momentumScore * 0.12 + communityScore * 0.1 + reliabilityScore * 0.14 + quality.score * 0.18 - riskScore * 0.22);
+  const confidenceScore = clamp(intelligenceScore * 0.55 + quality.confidence * 45 - ((t.sourceCount ?? 1) < 2 ? 5 : 0));
+
+  const alerts: TokenIntelligence["alerts"] = [];
+  if ((t.priceDiscrepancyPct ?? 0) > 5) alerts.push({ type: "data_discrepancy", severity: (t.priceDiscrepancyPct ?? 0) > 15 ? "critical" : "warning", message: "Market sources disagree; confidence reduced." });
+  if (Math.abs(ch24) > 35) alerts.push({ type: "volatility_spike", severity: Math.abs(ch24) > 80 ? "critical" : "warning", message: "Extreme 24h price movement detected." });
+  if (liq > 0 && vol / liq > 12) alerts.push({ type: "suspicious_volume", severity: "warning", message: "Volume is unusually high relative to liquidity." });
+  if (liq < 10_000) alerts.push({ type: "liquidity_risk", severity: "critical", message: "Liquidity is too thin for high-confidence classification." });
+
+  const verificationTier: VerificationTier = riskScore >= 70 || quality.label === "suspicious" ? "high-risk"
+    : confidenceScore >= 72 && reliabilityScore >= 55 && liquidityScore >= 45 && quality.risk < 35 ? "verified"
+      : communityScore >= 58 && confidenceScore >= 45 && riskScore < 62 ? "community"
+        : "unverified";
+
+  const categories: RankingCategory[] = [];
+  if (verificationTier === "verified") categories.push("verified");
+  if (verificationTier === "community") categories.push("community");
+  if (momentumScore >= 65 && riskScore < 65) categories.push("trending");
+  if (volumeScore >= 70) categories.push("highVolume");
+  if (verificationTier !== "verified" && marketQuality >= 45 && riskScore < 65) categories.push("emerging");
+  if (verificationTier === "high-risk" || riskScore >= 65) categories.push("highRisk");
+
+  return { ...quality, intelligence: { intelligenceScore: Math.round(intelligenceScore), confidenceScore: Math.round(confidenceScore), verificationTier, categories, marketQuality: Math.round(marketQuality), liquidityScore: Math.round(liquidityScore), volumeScore: Math.round(volumeScore), momentumScore: Math.round(momentumScore), communityScore: Math.round(communityScore), reliabilityScore: Math.round(reliabilityScore), riskScore: Math.round(riskScore), alerts } };
 }

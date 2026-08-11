@@ -85,6 +85,7 @@ function Dashboard() {
   const [aiPop, setAiPop] = useState(false);
   const [backtestOpen, setBacktestOpen] = useState(false);
   const [theme, setTheme] = useLocal<"solaris" | "nebula">("ab.theme", "solaris");
+  const alertCooldownRef = useRef(new Map<string, number>());
   useEffect(() => {
     if (typeof document !== "undefined") document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
@@ -195,7 +196,12 @@ function Dashboard() {
         const q = quoteMap.get(a.symbol);
         if (!q) return a;
         const hit = a.direction === "above" ? q.price >= a.target : q.price <= a.target;
-        if (hit) {
+        const crossedFromBase = a.basePrice === undefined || (a.direction === "above" ? a.basePrice < a.target : a.basePrice > a.target);
+        const cooldownKey = `${a.id}:${a.direction}:${a.target}`;
+        const lastFire = alertCooldownRef.current.get(cooldownKey) ?? 0;
+        const cooldownOpen = Date.now() - lastFire > 60_000;
+        if (hit && crossedFromBase && cooldownOpen) {
+          alertCooldownRef.current.set(cooldownKey, Date.now());
           changed = true;
           const arrow = a.direction === "above" ? "▲" : "▼";
           const msg = `${arrow} ${clean(a.symbol)} ${a.direction} $${fmt(a.target)} — now $${fmt(q.price)}`;
@@ -217,11 +223,12 @@ function Dashboard() {
           try { if ("vibrate" in navigator) navigator.vibrate([80, 40, 120, 40, 200]); } catch { /* noop */ }
           try { window.dispatchEvent(new CustomEvent("ab-toast", { detail: msg })); } catch { /* noop */ }
           if (a.repeat) {
-            // Re-arm on the opposite side of target so it fires again on the next crossing
+            // State-aware repeat: keep the condition active without spamming; it re-arms only after price crosses back to the safe side.
             return { ...a, basePrice: q.price };
           }
           return { ...a, triggered: Date.now() };
         }
+        if (!hit && a.repeat && a.basePrice !== q.price) return { ...a, basePrice: q.price };
         return a;
       });
       if (changed) setAlerts(next);
@@ -1135,9 +1142,9 @@ function NavigatorPanel({
   const compareSet = useMemo(() => new Set(compareSyms.map((c) => c.symbol)), [compareSyms]);
 
   const items = useMemo(() => {
-    let arr: Array<{ symbol: string; label: string; price: number; changePercent: number; volume?: number; kind: Kind }> = [];
+    let arr: Array<{ symbol: string; label: string; price: number; changePercent: number; volume?: number; kind: Kind; verification?: string; confidenceScore?: number; riskScore?: number }> = [];
     if (tab === "stocks") arr = (stocksAll.data ?? []).map((s) => ({ symbol: s.symbol, label: s.name, price: s.price, changePercent: s.changePercent, kind: "stock" }));
-    else if (tab === "crypto") arr = (cryptoAll.data ?? []).map((t) => ({ symbol: t.symbol, label: `${t.base} · Crypto.com`, price: t.price, changePercent: t.changePercent, volume: t.volume, kind: "crypto" }));
+    else if (tab === "crypto") arr = (cryptoAll.data ?? []).map((t) => ({ symbol: t.symbol, label: `${t.base} · ${t.verification ?? "qualified"} · score ${t.intelligenceScore ?? 0}`, price: t.price, changePercent: t.changePercent, volume: t.volume, kind: "crypto", verification: t.verification, confidenceScore: t.confidenceScore, riskScore: t.riskScore }));
     else if (tab === "watchlist") arr = watch.map((w) => { const qq = quoteMap.get(w.symbol); return { symbol: w.symbol, label: w.label ?? "", price: qq?.price ?? 0, changePercent: qq?.changePercent ?? 0, kind: w.kind }; });
     else arr = [];
     const qU = q.trim().toUpperCase();
@@ -1215,8 +1222,16 @@ function NavigatorPanel({
                     <div className="text-xs font-bold text-white flex items-center gap-1.5">
                       {clean(it.symbol)}
                       <span className={`text-[8px] font-mono uppercase px-1 py-px rounded ${it.kind === "crypto" ? "bg-indigo-500/25 text-indigo-300" : "bg-cyan-500/25 text-cyan-300"}`}>{it.kind}</span>
+                      {it.verification && (
+                        <span className={`text-[8px] font-mono uppercase px-1 py-px rounded ${it.verification === "verified" ? "bg-emerald-500/25 text-emerald-300" : it.verification === "community" ? "bg-fuchsia-500/25 text-fuchsia-300" : it.verification === "high-risk" ? "bg-rose-500/25 text-rose-300" : "bg-amber-500/20 text-amber-300"}`}>
+                          {it.verification}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[10px] text-slate-500 truncate max-w-[160px]">{it.label}</div>
+                    {it.confidenceScore !== undefined && (
+                      <div className="text-[9px] font-mono text-slate-600">conf {it.confidenceScore} · risk {it.riskScore}</div>
+                    )}
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-[11px] font-mono text-slate-200">${fmt(it.price)}</div>
