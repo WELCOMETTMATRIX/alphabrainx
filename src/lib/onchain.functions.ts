@@ -86,10 +86,13 @@ type DsPair = {
 };
 
 type TokenLite = {
-  chain: string; address: string; name: string; symbol: string; icon?: string;
-  price?: number; priceChange24h?: number; liquidityUsd?: number; volume24h?: number;
+  chain: string; chainLabel?: string; address: string; name: string; symbol: string; icon?: string;
+  price?: number; priceChange24h?: number; priceChangeH1?: number; priceChangeH6?: number;
+  liquidityUsd?: number; volume24h?: number; volumeH1?: number;
   fdv?: number; marketCap?: number; pairAddress?: string; dex?: string; pairUrl?: string;
-  createdAt?: number;
+  createdAt?: number; buys24h?: number; sells24h?: number; pairCount?: number;
+  explorerUrl?: string;
+  quality?: QualityReport;
 };
 
 function pickBestPair(pairs: DsPair[]): DsPair | undefined {
@@ -97,32 +100,80 @@ function pickBestPair(pairs: DsPair[]): DsPair | undefined {
   return [...pairs].sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0];
 }
 
-function pairToToken(p: DsPair): TokenLite {
-  return {
+function pairToToken(p: DsPair, pairCount = 1): TokenLite {
+  const base: TokenLite = {
     chain: p.chainId,
+    chainLabel: chainLabel(p.chainId),
     address: p.baseToken.address,
     name: p.baseToken.name,
     symbol: p.baseToken.symbol,
     icon: p.info?.imageUrl,
     price: p.priceUsd ? parseFloat(p.priceUsd) : undefined,
     priceChange24h: p.priceChange?.h24,
+    priceChangeH1: p.priceChange?.h1,
+    priceChangeH6: p.priceChange?.h6,
     liquidityUsd: p.liquidity?.usd,
     volume24h: p.volume?.h24,
+    volumeH1: p.volume?.h1,
     fdv: p.fdv,
     marketCap: p.marketCap,
     pairAddress: p.pairAddress,
     dex: p.dexId,
     pairUrl: p.url,
     createdAt: p.pairCreatedAt,
+    buys24h: p.txns?.h24?.buys,
+    sells24h: p.txns?.h24?.sells,
+    pairCount,
+    explorerUrl: explorerTokenUrl(p.chainId, p.baseToken.address),
+  };
+  base.quality = scoreToken({
+    ...base,
+    hasWebsite: !!p.info?.websites?.length,
+    hasSocials: !!p.info?.socials?.length,
+  });
+  return base;
+}
+
+/** Apply quality gate + sorting + pagination in one place. */
+function refine<T extends TokenLite>(
+  tokens: T[],
+  opts: { page?: number; pageSize?: number; minScore?: number; includeRisky?: boolean; chain?: string; sort?: "liquidity" | "volume" | "change" | "quality" | "new" } = {},
+) {
+  const page = Math.max(1, opts.page ?? 1);
+  const pageSize = Math.min(100, Math.max(4, opts.pageSize ?? 24));
+  let rows = tokens;
+  if (opts.chain) rows = rows.filter((t) => t.chain === opts.chain);
+  if (!opts.includeRisky) rows = rows.filter((t) => !t.quality?.filtered);
+  if (opts.minScore) rows = rows.filter((t) => (t.quality?.score ?? 0) >= opts.minScore!);
+  const sort = opts.sort ?? "liquidity";
+  rows = [...rows].sort((a, b) => {
+    switch (sort) {
+      case "volume": return (b.volume24h ?? 0) - (a.volume24h ?? 0);
+      case "change": return (b.priceChange24h ?? 0) - (a.priceChange24h ?? 0);
+      case "quality": return (b.quality?.score ?? 0) - (a.quality?.score ?? 0);
+      case "new": return (b.createdAt ?? 0) - (a.createdAt ?? 0);
+      default: return (b.liquidityUsd ?? 0) - (a.liquidityUsd ?? 0);
+    }
+  });
+  const total = rows.length;
+  const start = (page - 1) * pageSize;
+  return {
+    items: rows.slice(start, start + pageSize),
+    total,
+    page,
+    pageSize,
+    hasMore: start + pageSize < total,
   };
 }
 
+type ListOpts = { page?: number; pageSize?: number; chain?: string; minScore?: number; includeRisky?: boolean; sort?: "liquidity" | "volume" | "change" | "quality" | "new" };
+
 // ---- Search across every chain ----
 export const searchOnchain = createServerFn({ method: "GET" })
-  .inputValidator((d: { query: string }) => d)
+  .inputValidator((d: { query: string } & ListOpts) => d)
   .handler(async ({ data }) => {
     if (!data.query || data.query.trim().length < 2) return [] as TokenLite[];
-    const r = await jget(`${DS}/latest/dex/search?q=${encodeURIComponent(data.query)}`, 10_000);
+    const r = await jget(`${DS}/latest/dex/search?q=${encodeURIComponent(data.query.slice(0, 64))}`, 10_000);
     const pairs = (r?.pairs ?? []) as DsPair[];
     // group by base token; pick best pair per token
     const byToken = new Map<string, DsPair[]>();
@@ -136,12 +187,18 @@ export const searchOnchain = createServerFn({ method: "GET" })
     const tokens: TokenLite[] = [];
     for (const arr of byToken.values()) {
       const best = pickBestPair(arr);
-      if (best) tokens.push(pairToToken(best));
+      if (best) tokens.push(pairToToken(best, arr.length));
     }
-    return tokens
-      .filter((t) => (t.liquidityUsd ?? 0) > 500)
-      .sort((a, b) => (b.liquidityUsd ?? 0) - (a.liquidityUsd ?? 0))
-      .slice(0, 40);
+    // Backwards compatible: existing UI consumes a plain array.
+    return refine(tokens, { ...data, pageSize: data.pageSize ?? 40, includeRisky: data.includeRisky ?? true }).items;
+  });
+
+/** Paginated search (new API) — same data, with total/hasMore for infinite lists. */
+export const searchOnchainPaged = createServerFn({ method: "GET" })
+  .inputValidator((d: { query: string } & ListOpts) => d)
+  .handler(async ({ data }) => {
+    const items = await searchOnchain({ data: { ...data, pageSize: 200, page: 1 } });
+    return refine(items as TokenLite[], data);
   });
 
 // ---- Token by contract address ----
