@@ -480,8 +480,14 @@ export const aiAnalyze = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     assertAiBudget("analyze");
     const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
     const question = data.question ? clampPrompt(data.question, 500) : undefined;
+    const localAnalysis = () => localBrief({
+      symbol: data.symbol ?? data.assets[0]?.symbol ?? "asset",
+      assets: data.assets ?? [],
+      candles: data.candles,
+      question,
+    });
+    if (!key) return { analysis: localAnalysis(), engine: "local" as const };
 
 
     // Compute rich technicals for the focus symbol
