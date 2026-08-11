@@ -2,6 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { generateText } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import { assertAiBudget } from "./ai-rate-limit.server";
+import { gtNetwork, explorerTokenUrl, chainLabel, CHAINS } from "./onchain-chains";
+import { scoreToken, type QualityReport } from "./token-quality";
+import { localOnchainThesis } from "./local-brain";
 
 
 // Free, no-key onchain data:
