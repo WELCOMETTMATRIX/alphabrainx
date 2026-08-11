@@ -530,11 +530,15 @@ For each: entry zone, invalidation, first target, and the trigger to watch.
 ## ⚠️ Risks & What Would Flip the Thesis
 Concrete catalysts, not vague warnings.`}`;
 
-    const { text } = await generateText({
-      model: gateway("google/gemini-3-flash-preview"),
-      prompt,
-    });
-    return { analysis: text };
+    try {
+      const { text } = await generateText({
+        model: gateway("google/gemini-3-flash-preview"),
+        prompt,
+      });
+      return { analysis: text, engine: "ai" as const };
+    } catch {
+      return { analysis: localAnalysis(), engine: "local" as const };
+    }
   });
 
 // ---- Indicator helpers ----
