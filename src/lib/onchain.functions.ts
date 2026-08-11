@@ -51,18 +51,19 @@ async function jget(url: string, ttlMs = 15_000): Promise<any> {
 
 }
 
-// DexScreener chainId → GeckoTerminal network slug
-const CHAIN_TO_GT: Record<string, string> = {
-  ethereum: "eth", bsc: "bsc", polygon: "polygon_pos", arbitrum: "arbitrum",
-  base: "base", avalanche: "avax", fantom: "ftm", cronos: "cronos",
-  optimism: "optimism", solana: "solana", sui: "sui-network", ton: "ton",
-  linea: "linea", scroll: "scroll", blast: "blast", mantle: "mantle",
-  zksync: "zksync", pulsechain: "pulsechain", celo: "celo",
-  hyperliquid: "hyperliquid", berachain: "berachain", sonic: "sonic",
-  abstract: "abstract", unichain: "unichain", ronin: "ronin", kava: "kava",
-  metis: "metis", moonbeam: "moonbeam", cardano: "cardano", tron: "tron",
-  aptos: "aptos", starknet: "starknet-alpha", near: "near",
-};
+// Multi-provider fetch with failover: tries each URL in order, returns first success.
+async function jgetAny(urls: string[], ttlMs = 15_000): Promise<any> {
+  let lastErr: unknown;
+  for (const u of urls) {
+    try { return await jget(u, ttlMs); } catch (e) { lastErr = e; }
+  }
+  throw lastErr ?? new Error("all providers failed");
+}
+
+/** Public: list every supported network (for chain filters in the UI). */
+export const listOnchainNetworks = createServerFn({ method: "GET" }).handler(async () =>
+  CHAINS.map((c) => ({ id: c.id, label: c.label, native: c.native ?? "" })),
+);
 
 // -------- DexScreener types (subset) --------
 type DsPair = {
