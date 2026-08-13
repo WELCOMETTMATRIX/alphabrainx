@@ -1,11 +1,11 @@
 {
-  "version": 1,
   "asset_id": "31064dc2-65b0-4464-a620-64c0b701014a",
-  "project_id": "9c0cc3b0-5955-48eb-a0a4-236da4ae23af",
-  "url": "/__l5e/assets-v1/31064dc2-65b0-4464-a620-64c0b701014a/AlphaBrain-Setup-win-x64.zip",
-  "r2_key": "a/v1/9c0cc3b0-5955-48eb-a0a4-236da4ae23af/31064dc2-65b0-4464-a620-64c0b701014a/AlphaBrain-Setup-win-x64.zip",
-  "original_filename": "AlphaBrain-Setup-win-x64.zip",
-  "size": 115087646,
   "content_type": "application/zip",
-  "created_at": "2026-07-21T01:00:48Z"
+  "created_at": "2026-07-21T01:00:48Z",
+  "original_filename": "AlphaBrain-Setup-win-x64.zip",
+  "project_id": "adf7d0f3-062d-4b33-8fbe-241e975c5a17",
+  "r2_key": "a/v1/adf7d0f3-062d-4b33-8fbe-241e975c5a17/31064dc2-65b0-4464-a620-64c0b701014a/AlphaBrain-Setup-win-x64.zip",
+  "size": 115087646,
+  "url": "/__l5e/assets-v1/31064dc2-65b0-4464-a620-64c0b701014a/AlphaBrain-Setup-win-x64.zip",
+  "version": 1
 }
