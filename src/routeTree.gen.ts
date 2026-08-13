@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as LabRouteImport } from './routes/lab'
 import { Route as IntelligenceRouteImport } from './routes/intelligence'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as DownloadRouteImport } from './routes/download'
@@ -35,6 +36,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LabRoute = LabRouteImport.update({
+  id: '/lab',
+  path: '/lab',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IntelligenceRoute = IntelligenceRouteImport.update({
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
   '/intelligence': typeof IntelligenceRoute
+  '/lab': typeof LabRoute
   '/library': typeof LibraryRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
   '/intelligence': typeof IntelligenceRoute
+  '/lab': typeof LabRoute
   '/library': typeof LibraryRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
   '/intelligence': typeof IntelligenceRoute
+  '/lab': typeof LabRoute
   '/library': typeof LibraryRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
@@ -138,6 +147,7 @@ export interface FileRouteTypes {
     | '/download'
     | '/faq'
     | '/intelligence'
+    | '/lab'
     | '/library'
     | '/privacy'
     | '/terms'
@@ -152,6 +162,7 @@ export interface FileRouteTypes {
     | '/download'
     | '/faq'
     | '/intelligence'
+    | '/lab'
     | '/library'
     | '/privacy'
     | '/terms'
@@ -166,6 +177,7 @@ export interface FileRouteTypes {
     | '/download'
     | '/faq'
     | '/intelligence'
+    | '/lab'
     | '/library'
     | '/privacy'
     | '/terms'
@@ -181,6 +193,7 @@ export interface RootRouteChildren {
   DownloadRoute: typeof DownloadRoute
   FaqRoute: typeof FaqRoute
   IntelligenceRoute: typeof IntelligenceRoute
+  LabRoute: typeof LabRoute
   LibraryRoute: typeof LibraryRoute
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
@@ -207,6 +220,13 @@ declare module '@tanstack/react-router' {
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lab': {
+      id: '/lab'
+      path: '/lab'
+      fullPath: '/lab'
+      preLoaderRoute: typeof LabRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/intelligence': {
@@ -285,6 +305,7 @@ const rootRouteChildren: RootRouteChildren = {
   DownloadRoute: DownloadRoute,
   FaqRoute: FaqRoute,
   IntelligenceRoute: IntelligenceRoute,
+  LabRoute: LabRoute,
   LibraryRoute: LibraryRoute,
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
