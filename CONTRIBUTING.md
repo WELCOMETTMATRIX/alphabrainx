@@ -16,3 +16,5 @@ Thanks for helping improve Alpha Brain. Keep the existing Lovable-connected prod
 - Never hardcode API keys or secrets.
 - Treat missing or inconsistent API data as uncertainty, not as a positive signal.
 - Preserve existing Alpha Brain branding, navigation, and Lovable workflow.
+
+5. Read `CODE_OF_CONDUCT.md` before participating in discussions.
