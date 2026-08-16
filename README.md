@@ -54,10 +54,20 @@ Alerts are evaluated against live quote state with crossing detection and cooldo
 
 ```sh
 cp .env.example .env.local
-# Add FINNHUB_API_KEY
 npm i
 npm run dev
 ```
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `FINNHUB_API_KEY` | yes | Stock, ETF and index quotes ([finnhub.io](https://finnhub.io), free tier works) |
+| `CRYPTO_COM_API_KEY` | optional | Authenticated Crypto.com Exchange endpoints (public tickers work without it) |
+| `CRYPTO_COM_API_SECRET` | optional | Pairs with the key above |
+| `LOVABLE_API_KEY` | for AI features | AI Analyst, scanner and on-chain analysis via the Lovable AI Gateway |
+| `AI_DAILY_BUDGET` | optional | Global daily AI request cap |
+| `AI_PER_IP_HOURLY` | optional | Per-IP hourly AI request cap |
+
+All keys are read server-side only, inside server functions — nothing is exposed to the browser.
 
 For production builds, run:
 
@@ -67,8 +77,17 @@ npm run build
 
 ## Security
 
-Never commit API keys. Keep provider credentials in server-side environment variables, review `.gitignore`, and see `SECURITY.md` for reporting guidance.
+Never commit API keys. Keep provider credentials in server-side environment variables (`.env.local` is git-ignored), and see `SECURITY.md` for reporting guidance.
 
 ## Contributing
 
-See `CONTRIBUTING.md`. Preserve existing branding and do not rewrite published Lovable git history.
+Contributions are welcome. Read `CONTRIBUTING.md` for the workflow and `CODE_OF_CONDUCT.md` for community expectations. Preserve existing branding and do not rewrite published Lovable git history.
+
+## License
+
+Released under the [MIT License](LICENSE) — free to use, modify and distribute with attribution.
+
+## Disclaimer
+
+Alpha Brain is an informational market-intelligence tool. Nothing it outputs is financial, investment, legal or tax advice. Trading carries substantial risk, including total loss of capital.
+
