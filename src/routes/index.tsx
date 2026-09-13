@@ -24,7 +24,19 @@ import {
   getOnchainTrades, getOnchainTrending, searchOnchain,
 } from "@/lib/onchain.functions";
 
-export const Route = createFileRoute("/")({ component: Dashboard });
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Alpha Brain — Live Market Intelligence" },
+      { name: "description", content: "Track stocks, crypto and on-chain markets with live charts, alerts and AI analysis." },
+      { property: "og:title", content: "Alpha Brain — Live Market Intelligence" },
+      { property: "og:description", content: "Live cross-market charts, alerts and AI analysis in one professional terminal." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: Dashboard,
+});
 
 type Kind = "stock" | "crypto";
 type Watch = { symbol: string; kind: Kind; label?: string };
@@ -84,10 +96,12 @@ function Dashboard() {
   const [chartPop, setChartPop] = useState(false);
   const [aiPop, setAiPop] = useState(false);
   const [backtestOpen, setBacktestOpen] = useState(false);
-  const [theme, setTheme] = useLocal<"solaris" | "nebula">("ab.theme", "solaris");
+  const [theme, setTheme] = useLocal<"spatial" | "pro">("ab.theme", "spatial");
   const alertCooldownRef = useRef(new Map<string, number>());
   useEffect(() => {
-    if (typeof document !== "undefined") document.documentElement.setAttribute("data-theme", theme);
+    const resolvedTheme = theme === "pro" ? "pro" : "spatial";
+    if (theme !== resolvedTheme) setTheme(resolvedTheme);
+    if (typeof document !== "undefined") document.documentElement.setAttribute("data-theme", resolvedTheme);
   }, [theme]);
 
 
@@ -252,14 +266,14 @@ function Dashboard() {
   const activeAlerts = alerts.filter((a) => !a.triggered).length;
 
   return (
-    <div className="min-h-screen text-slate-100 flex flex-col relative">
+    <div className="terminal-page min-h-screen text-foreground flex flex-col relative">
       <ToastHost />
       <TickerTape stocks={stockMoversQuery.data} crypto={cryptoMoversQuery.data} />
       <Header alerts={activeAlerts} onOpenAlerts={() => setMobileTab("alerts")} onOpenInstall={() => setInstallOpen(true)} theme={theme} setTheme={setTheme} />
       <PulseBar pulse={pulseQuery.data} />
 
       {/* Desktop layout */}
-      <div className="hidden lg:grid flex-1 grid-cols-12 gap-3 p-3 min-h-[calc(100vh-160px)]">
+      <div className="terminal-shell hidden lg:grid flex-1 grid-cols-12 gap-4 p-4 min-h-[calc(100vh-160px)]">
         <aside className="col-span-3 flex flex-col gap-3 min-h-0">
           <NavigatorPanel
             watch={watch} setWatch={setWatch} selected={selected} setSelected={setSelected}
@@ -468,38 +482,38 @@ function ToastHost() {
 // ============================================================================
 // HEADER
 // ============================================================================
-function Header({ alerts, onOpenAlerts, onOpenInstall, theme, setTheme }: { alerts: number; onOpenAlerts: () => void; onOpenInstall: () => void; theme: "solaris" | "nebula"; setTheme: (v: "solaris" | "nebula") => void }) {
+function Header({ alerts, onOpenAlerts, onOpenInstall, theme, setTheme }: { alerts: number; onOpenAlerts: () => void; onOpenInstall: () => void; theme: "spatial" | "pro"; setTheme: (v: "spatial" | "pro") => void }) {
   return (
     <header className="sticky top-0 z-20 px-3 pt-3 pt-safe">
       <div className="glass-strong rounded-2xl grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 sm:flex sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative shrink-0">
-            <div className="h-10 w-10 rounded-2xl grid place-items-center relative overflow-hidden bg-gradient-to-br from-indigo-500 via-cyan-400 to-emerald-400 shadow-lg">
-              <Brain className="h-5 w-5 text-black relative z-10" strokeWidth={2.5} />
+            <div className="brand-mark h-10 w-10 rounded-xl grid place-items-center relative overflow-hidden shadow-lg">
+              <Brain className="h-5 w-5 text-primary-foreground relative z-10" strokeWidth={2.5} />
               <div className="absolute inset-0 animate-scan" style={{ background: "linear-gradient(180deg, transparent, oklch(1 0 0 / 0.4), transparent)", height: "50%" }} />
             </div>
             <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-emerald-400 animate-pulse-ring" />
           </div>
           <div className="min-w-0">
             <h1 className="truncate text-base sm:text-xl font-black tracking-tight" style={{ fontFamily: "var(--font-display)", color: "var(--foreground)" }}>
-              ALPHA <span style={{ background: "var(--grad-neon)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>BRAIN</span>
+              Alpha Brain <span className="font-normal text-muted-foreground">Terminal</span>
             </h1>
             <p className="text-[9px] uppercase tracking-[0.25em] -mt-0.5 font-mono" style={{ color: "var(--muted-foreground)" }}>
-              {theme === "solaris" ? "Solaris Terminal · v3" : "Nebula Depth · v3"}
+              {theme === "spatial" ? "Spatial Glass · 2028" : "Pro Titanium · 2028"}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <div className="hidden sm:block"><SearchBox /></div>
           <div className="glass-pill hidden md:flex items-center p-0.5 text-[10px] font-mono uppercase tracking-wider">
-            <button onClick={() => setTheme("solaris")}
-              className={`tap px-2.5 py-1 rounded-full transition ${theme === "solaris" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              style={theme === "solaris" ? { background: "var(--grad-neon)" } : undefined}>Solaris</button>
-            <button onClick={() => setTheme("nebula")}
-              className={`tap px-2.5 py-1 rounded-full transition ${theme === "nebula" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              style={theme === "nebula" ? { background: "var(--grad-neon)" } : undefined}>Nebula</button>
+            <button onClick={() => setTheme("spatial")}
+              className={`tap px-2.5 py-1 rounded-full transition ${theme === "spatial" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              style={theme === "spatial" ? { background: "var(--grad-neon)" } : undefined}>Spatial</button>
+            <button onClick={() => setTheme("pro")}
+              className={`tap px-2.5 py-1 rounded-full transition ${theme === "pro" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              style={theme === "pro" ? { background: "var(--grad-neon)" } : undefined}>Pro</button>
           </div>
-          <button onClick={() => setTheme(theme === "solaris" ? "nebula" : "solaris")} title="Switch template"
+          <button onClick={() => setTheme(theme === "spatial" ? "pro" : "spatial")} title="Switch template"
             className="md:hidden tap h-10 w-10 grid place-items-center rounded-xl glass hover:bg-white/10">
             <Sparkles className="h-4 w-4" />
           </button>
