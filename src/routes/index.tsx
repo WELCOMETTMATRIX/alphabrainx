@@ -99,7 +99,9 @@ function Dashboard() {
   const [theme, setTheme] = useLocal<"spatial" | "pro">("ab.theme", "spatial");
   const alertCooldownRef = useRef(new Map<string, number>());
   useEffect(() => {
-    if (typeof document !== "undefined") document.documentElement.setAttribute("data-theme", theme);
+    const resolvedTheme = theme === "pro" ? "pro" : "spatial";
+    if (theme !== resolvedTheme) setTheme(resolvedTheme);
+    if (typeof document !== "undefined") document.documentElement.setAttribute("data-theme", resolvedTheme);
   }, [theme]);
 
 
